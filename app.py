@@ -392,8 +392,8 @@ if st.session_state.scan_running:
     max_leads = st.session_state.get("max_leads", 10)
 
     with scan_container:
-        progress_bar = st.progress(0, text="Starting scan...")
-        status_text = st.empty()
+        progress_bar = st.progress(0, text="⏳ Initializing scan...")
+        status_text = st.info("Preparing to discover businesses...")
         phase_text = st.empty()
         live_table = st.empty()
 
@@ -432,6 +432,7 @@ if st.session_state.scan_running:
         phase = update.get("phase", 1)
         label = "📡 Phase 1: Discovering..." if phase == 1 else "🔎 Phase 2: Enriching..."
         phase_text.info(label)
+        status_text.info(update["message"])
         st.rerun()
 
     elif t == "enrichment_progress":

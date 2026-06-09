@@ -295,7 +295,7 @@ def _enrich_one(biz, biz_type, city, state_name, country, existing, stop_flag=No
     }
 
     has_any_contact = bool(biz_phone or biz_website or biz_emails)
-    item_deadline = time.time() + 50
+    item_deadline = time.time() + 60
 
     ddg = search_business(biz_name, city, state_name, country)
     for e in ddg["emails"]:
@@ -327,7 +327,7 @@ def _enrich_one(biz, biz_type, city, state_name, country, existing, stop_flag=No
                 enriched["email_source"] = "Instagram"
 
     if enriched["website"] and time.time() < item_deadline:
-        ws_data = scrape_website(enriched["website"], timeout=6)
+        ws_data = scrape_website(enriched["website"], timeout=14)
         for e in ws_data["emails"]:
             if e not in enriched["emails"]:
                 enriched["emails"].append(e)
@@ -422,8 +422,6 @@ def discover_via_duckduckgo(business_type: str, city: str, state: str, country: 
     if _scan_stop_event.is_set():
         return []
 
-    time.sleep(3.5)
-
     session = _get_ddg_session()
 
     for attempt in range(2):
@@ -440,6 +438,7 @@ def discover_via_duckduckgo(business_type: str, city: str, state: str, country: 
             if resp.status_code == 429 or resp.status_code == 403:
                 if attempt == 0:
                     time.sleep(10)
+                    session = _get_ddg_session()
                     continue
                 return discovered
 
