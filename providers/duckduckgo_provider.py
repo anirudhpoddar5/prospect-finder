@@ -1,5 +1,6 @@
 import re
 import time
+from urllib.parse import urlparse
 from typing import Optional
 
 try:
@@ -12,6 +13,21 @@ PHONE_REGEX = re.compile(r"\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}")
 LINKEDIN_REGEX = re.compile(r"linkedin\.com/(?:in|company)/[\w-]+")
 INSTAGRAM_REGEX = re.compile(r"(?:instagram\.com/|@)([\w.]+)")
 FACEBOOK_REGEX = re.compile(r"facebook\.com/[\w.]+")
+
+COMMON_EMAIL_PREFIXES = [
+    "info", "contact", "hello", "office", "bookings", "appointments",
+    "admin", "support", "care", "team", "inquiries",
+    "sales", "studio", "spa", "dental", "booking",
+]
+
+
+def guess_emails_from_domain(website: str) -> list[str]:
+    if not website:
+        return []
+    domain = urlparse(website).netloc.replace("www.", "").lower()
+    if not domain or "." not in domain:
+        return []
+    return [f"{prefix}@{domain}" for prefix in COMMON_EMAIL_PREFIXES]
 
 # Emails to exclude (non-contract)
 BLOCKED_EMAIL_PATTERNS = [
@@ -39,7 +55,8 @@ def is_valid_email(email: str) -> bool:
     return True
 
 
-def search_business(business_name: str, city: str, state: str, country: str = "US"):
+def search_business(business_name: str, city: str, state: str, country: str = "US",
+                    website: str = ""):
     """
     Search DuckDuckGo for contact info of a specific business.
     Returns dict with emails, phones, linkedin, instagram, facebook, website.
@@ -57,6 +74,11 @@ def search_business(business_name: str, city: str, state: str, country: str = "U
         f'"{business_name}" {city} email contact info',
         f'"{business_name}" {city} linkedin facebook instagram',
     ]
+
+    if website:
+        domain = urlparse(website).netloc.replace("www.", "").lower()
+        if domain:
+            queries.append(f'site:{domain} email OR contact OR "info@"')
 
     seen_snippets = set()
 

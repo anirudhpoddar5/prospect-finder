@@ -14,7 +14,7 @@ except ImportError:
     from duckduckgo_search import DDGS
 
 from providers.google_places import search_businesses
-from providers.duckduckgo_provider import search_business, is_valid_email
+from providers.duckduckgo_provider import search_business, is_valid_email, guess_emails_from_domain
 from providers.social_scraper import scrape_facebook_page, scrape_instagram_bio
 from providers.website_scraper import scrape_website
 from providers.geoapify import search_geoapify
@@ -297,7 +297,7 @@ def _enrich_one(biz, biz_type, city, state_name, country, existing, stop_flag=No
     has_any_contact = bool(biz_phone or biz_website or biz_emails)
     item_deadline = time.time() + 60
 
-    ddg = search_business(biz_name, city, state_name, country)
+    ddg = search_business(biz_name, city, state_name, country, website=biz_website)
     for e in ddg["emails"]:
         if e not in enriched["emails"]:
             enriched["emails"].append(e)
@@ -334,6 +334,13 @@ def _enrich_one(biz, biz_type, city, state_name, country, existing, stop_flag=No
                 enriched["email_source"] = "Website"
         if not enriched["phone"] and ws_data["phones"]:
             enriched["phone"] = ws_data["phones"][0]
+
+    if not enriched["emails"] and enriched["website"]:
+        for guess in guess_emails_from_domain(enriched["website"]):
+            if guess not in enriched["emails"]:
+                enriched["emails"].append(guess)
+                enriched["email_source"] = "Domain guess"
+                break
 
     has_any_contact = has_any_contact or bool(enriched["emails"])
     if not has_any_contact:
