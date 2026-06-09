@@ -284,7 +284,7 @@ def _enrich_one(biz, biz_type, city, state_name, country, existing, stop_flag=No
     }
 
     has_any_contact = bool(biz_phone or biz_website or biz_emails)
-    item_deadline = time.time() + 35
+    item_deadline = time.time() + 50
 
     ddg = search_business(biz_name, city, state_name, country)
     for e in ddg["emails"]:
@@ -315,8 +315,8 @@ def _enrich_one(biz, biz_type, city, state_name, country, existing, stop_flag=No
                 enriched["emails"].append(e)
                 enriched["email_source"] = "Instagram"
 
-    if enriched["website"] and not enriched["emails"] and time.time() < item_deadline:
-        ws_data = scrape_website(enriched["website"], timeout=5)
+    if enriched["website"] and time.time() < item_deadline:
+        ws_data = scrape_website(enriched["website"], timeout=6)
         for e in ws_data["emails"]:
             if e not in enriched["emails"]:
                 enriched["emails"].append(e)
