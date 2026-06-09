@@ -17,6 +17,7 @@ from providers.google_places import search_businesses
 from providers.duckduckgo_provider import search_business, is_valid_email
 from providers.social_scraper import scrape_facebook_page, scrape_instagram_bio
 from providers.website_scraper import scrape_website
+from providers.geoapify import search_geoapify
 from utils.dedup import load_existing_prospects, is_duplicate
 
 _HEADERS = {
@@ -79,15 +80,17 @@ class ScanState:
     business_types: list = field(default_factory=list)
     locations: list = field(default_factory=list)
     api_key: str = ""
+    geoapify_key: str = ""
     use_duckduckgo_only: bool = False
     max_leads: int = 0
     message: str = ""
 
 
 def init_scan_state(api_key, business_types, locations, existing_csv_path,
-                    use_duckduckgo_only, max_leads) -> ScanState:
+                    use_duckduckgo_only, max_leads, geoapify_key="") -> ScanState:
     state = ScanState(
         api_key=api_key,
+        geoapify_key=geoapify_key,
         business_types=business_types,
         locations=locations,
         use_duckduckgo_only=use_duckduckgo_only,
@@ -161,7 +164,15 @@ def _discover_step(state: ScanState) -> dict:
     state_name = loc.get("state", "")
     country = loc.get("country", "US")
 
-    if state.use_duckduckgo_only:
+    if state.geoapify_key:
+        discovered = []
+        for update in search_geoapify(state.geoapify_key, biz_type, f"{city} {state_name or country}"):
+            if update["type"] == "complete":
+                discovered = update["results"]
+            elif update["type"] == "error":
+                return update
+        msg = f"Geoapify found {len(discovered)} businesses in {city}"
+    elif state.use_duckduckgo_only:
         discovered = discover_via_duckduckgo(
             biz_type, city, state_name, country,
             max_leads=state.max_leads or 10,

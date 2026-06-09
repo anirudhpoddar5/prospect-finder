@@ -75,10 +75,12 @@ def reset_scan():
     st.session_state.scan_state = None
 
 
-# ─── GET API KEY ───────────────────────────────────────────────────────────────
+# ─── GET API KEYS ────────────────────────────────────────────────────────────────
 def get_api_key():
-    key = st.secrets.get("google_api_key", os.environ.get("GOOGLE_API_KEY", ""))
-    return key
+    return st.secrets.get("google_api_key", os.environ.get("GOOGLE_API_KEY", ""))
+
+def get_geoapify_key():
+    return st.secrets.get("geoapify_key", os.environ.get("GEOAPIFY_KEY", ""))
 
 
 # ─── DEMO DATA ─────────────────────────────────────────────────────────────────
@@ -184,11 +186,13 @@ def load_demo_data():
 st.title("🕵️ Prospect Finder")
 st.caption("Discover businesses worldwide with enriched contact data. Finds email, LinkedIn, Instagram, Facebook, and phone.")
 
-# Check API key
+# Check API keys
 api_key = get_api_key()
+geoapify_key = get_geoapify_key()
 has_api_key = bool(api_key)
-if not has_api_key:
-    st.warning("⚠️ **Google API key not set.** Real scans are disabled. Use **Load Demo Data** below to test the full UI, dedup, and export with sample prospects.")
+has_geoapify = bool(geoapify_key)
+if not has_api_key and not has_geoapify:
+    st.warning("⚠️ **No API keys found.** DuckDuckGo-only mode is limited. Set Google Places or Geoapify key in secrets for better results. Use **Load Demo Data** to test the UI.")
 
 with st.sidebar:
     st.header("⚙️ Settings")
@@ -282,6 +286,10 @@ with st.sidebar:
 
     st.divider()
 
+    if has_geoapify:
+        st.caption("✅ Geoapify key detected — fast discovery enabled")
+    st.session_state.geoapify_key = geoapify_key
+
     st.subheader("Max Leads")
     max_leads = st.number_input(
         "Max prospects per location (0 = unlimited)",
@@ -299,8 +307,15 @@ with st.sidebar:
     col1, col2 = st.columns(2)
     with col1:
         enabled = not st.session_state.scan_running
+        btn_label = "🔍 Start Scan"
+        if has_geoapify:
+            btn_label = "🔍 Scan (Geoapify)"
+        elif has_api_key:
+            btn_label = "🔍 Scan (Google)"
+        else:
+            btn_label = "🔍 Scan (DuckDuckGo)"
         start_btn = st.button(
-            "🔍 Start Scan" if has_api_key else "🔍 Scan (DuckDuckGo only)",
+            btn_label,
             type="primary",
             use_container_width=True,
             disabled=not enabled,
@@ -314,7 +329,7 @@ with st.sidebar:
         )
 
     demo_btn = st.button(
-        "🎲 Load Demo Data" if not has_api_key else "🎲 Load Demo (no API)",
+        "🎲 Load Demo Data",
         use_container_width=True,
         disabled=st.session_state.scan_running,
     )
@@ -389,8 +404,9 @@ if st.session_state.scan_running:
             business_types=business_types,
             locations=locations,
             existing_csv_path=tmp_csv,
-            use_duckduckgo_only=not has_api_key,
+            use_duckduckgo_only=not has_api_key and not has_geoapify,
             max_leads=max_leads or 0,
+            geoapify_key=geoapify_key,
         )
 
     state = st.session_state.scan_state
