@@ -482,9 +482,10 @@ with st.sidebar:
     if max_leads:
         st.markdown(f'<div style="font-size:11px;color:#808080;">⏱ {max_leads} prospects per city</div>', unsafe_allow_html=True)
 
-    keep_no_contact = st.checkbox(
+    st.checkbox(
         "Keep no-contact entries",
         value=False,
+        key="keep_no_contact",
     )
 
     st.session_state.max_leads = max_leads
