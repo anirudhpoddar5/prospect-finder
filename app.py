@@ -20,21 +20,18 @@ st.markdown("""
 
     * { font-family: 'JetBrains Mono', monospace; }
 
-    /* Matrix rain effect for login */
-    .matrix-login {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    /* Login page background */
+    .login-page {
         background: #0A0D14;
-        display: flex; align-items: center; justify-content: center;
-        z-index: 9999;
-    }
-    .matrix-login::before {
-        content: '';
-        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background:
+        min-height: 80vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background-image:
             linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
             linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
         background-size: 40px 40px;
-        pointer-events: none;
     }
     .login-terminal {
         background: #131720;
@@ -43,8 +40,6 @@ st.markdown("""
         padding: 40px;
         width: 420px;
         box-shadow: 0 0 30px rgba(0,255,136,0.2), inset 0 0 30px rgba(0,255,136,0.05);
-        position: relative;
-        z-index: 1;
     }
     .login-terminal .title-bar {
         color: #00FF88; font-size: 14px; margin-bottom: 24px;
@@ -72,6 +67,19 @@ st.markdown("""
     }
     @keyframes blink {
         50% { opacity: 0; }
+    }
+    .login-terminal .stTextInput input {
+        background: #0A0D14 !important;
+        border: 1px solid #00FF88 !important;
+        color: #00FF88 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 16px !important;
+        padding: 12px !important;
+        text-align: center !important;
+        letter-spacing: 4px !important;
+    }
+    .login-terminal .stTextInput input:focus {
+        box-shadow: 0 0 15px rgba(0,255,136,0.3) !important;
     }
 
     /* Glass card */
@@ -252,8 +260,9 @@ def check_password():
     if st.session_state.authenticated:
         return True
 
-    st.markdown(f"""
-    <div class="matrix-login">
+    # Full-page login with terminal card
+    st.markdown("""
+    <div class="login-page">
         <div class="login-terminal">
             <div class="title-bar">
                 <span class="dot dot-red"></span>
@@ -262,24 +271,26 @@ def check_password():
                 <span style="margin-left:8px;font-size:11px;opacity:0.5;">prospect_finder.exe</span>
             </div>
             <h1>🕵️ PROSPECT FINDER</h1>
-            <div class="prompt">SECURE TERMINAL v1.0 — ENTER PASSWORD</div>
-            <div class="prompt" style="margin-top:8px;opacity:0.5;">
-                $ access --grant <span class="cursor"></span>
-            </div>
+            <div class="prompt">SECURE TERMINAL v1.0</div>
+            <div class="prompt">$ access --grant</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    cols = st.columns([1, 1.5, 1])
-    with cols[1]:
-        password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="")
-        expected = st.secrets.get("password", os.environ.get("PROSPECT_PASSWORD", ""))
-        if password:
-            if password == expected:
-                st.session_state.authenticated = True
-                st.rerun()
-            else:
-                st.error("$ ACCESS DENIED — INCORRECT PASSWORD")
+    # Centered password input below the terminal card
+    _, col, _ = st.columns([1, 1.5, 1])
+    with col:
+        with st.container():
+            st.markdown('<div style="margin-top:-60px;position:relative;z-index:2;">', unsafe_allow_html=True)
+            password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="")
+            st.markdown("</div>", unsafe_allow_html=True)
+            expected = st.secrets.get("password", os.environ.get("PROSPECT_PASSWORD", ""))
+            if password:
+                if password == expected:
+                    st.session_state.authenticated = True
+                    st.rerun()
+                else:
+                    st.error("$ ACCESS DENIED — INCORRECT PASSWORD")
     return False
 
 
