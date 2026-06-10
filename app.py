@@ -6,6 +6,8 @@ import io
 import csv
 from datetime import datetime
 
+STREAMLIT_CLOUD_DEPLOY = True
+
 st.set_page_config(
     page_title="Prospect Finder",
     page_icon="🕵️",
