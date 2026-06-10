@@ -48,53 +48,34 @@ st.markdown("""
     @keyframes blink {
         50% { opacity: 0; }
     }
-    /* Terminal card (for login) */
-    .term-card {
+    /* ─── LOGIN CARD (style Streamlit container as glowing terminal card) ── */
+    div[data-testid="stVerticalBlock"]:has(.login-dots) {
         background: linear-gradient(135deg, #131720 0%, #1A2030 100%);
         border: 1px solid #00FF88;
         border-radius: 12px;
         padding: 32px 36px 24px;
         box-shadow: 0 0 40px rgba(0,255,136,0.15), 0 0 80px rgba(0,255,136,0.05);
+        width: 100%;
+        max-width: 460px;
+        margin: 15vh auto 0;
     }
-    .term-card .dot-group {
+    .login-dots {
         display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
     }
-    .term-card .dot-group span {
+    .login-dots span {
         width: 12px; height: 12px; border-radius: 50%;
     }
-    .term-card .dot-group .r { background: #FF3355; }
-    .term-card .dot-group .y { background: #FFD700; }
-    .term-card .dot-group .g { background: #00FF88; }
-    .term-card .dot-group .title {
+    .login-dots .r { background: #FF3355; }
+    .login-dots .y { background: #FFD700; }
+    .login-dots .g { background: #00FF88; }
+    .login-dots .title {
         color: #808080; font-size: 11px; margin-left: 4px; flex: 1;
     }
-    .term-card h1 {
-        color: #00FF88; font-size: 24px; font-weight: 700;
-        margin-bottom: 4px; text-shadow: 0 0 15px rgba(0,255,136,0.4);
-        text-align: center;
-    }
-    .term-card .sub {
-        color: #00FF88; font-size: 12px; opacity: 0.6;
-        margin-bottom: 0; text-align: center;
-    }
-    .term-card .footer-line {
-        color: #00FF88; font-size: 12px; opacity: 0.5;
-        margin-top: 16px; text-align: center;
-    }
-    .term-card .footer-line .cursor {
-        display: inline-block; width: 8px; height: 15px;
-        background: #00FF88;
-        animation: blink 1s step-end infinite;
-        vertical-align: middle;
-        margin-left: 4px;
-    }
-    /* Password input inside the card */
-    .term-card .stTextInput input {
+    div[data-testid="stVerticalBlock"]:has(.login-dots) input {
         background: #0A0D14 !important;
         border: 1px solid #00FF88 !important;
         border-radius: 6px !important;
         color: #00FF88 !important;
-        font-family: 'JetBrains Mono', monospace !important;
         font-size: 20px !important;
         padding: 12px !important;
         text-align: center !important;
@@ -102,7 +83,7 @@ st.markdown("""
         caret-color: #00FF88 !important;
         box-shadow: 0 0 10px rgba(0,255,136,0.1) !important;
     }
-    .term-card .stTextInput input:focus {
+    div[data-testid="stVerticalBlock"]:has(.login-dots) input:focus {
         box-shadow: 0 0 25px rgba(0,255,136,0.4) !important;
         border-color: #00FF88 !important;
     }
@@ -310,45 +291,37 @@ def check_password():
 
     st.markdown(st.session_state.matrix_rain, unsafe_allow_html=True)
 
-    # ── Centered login card with password INSIDE ──
+    # ── Login card (Streamlit container styled via CSS :has(.login-dots)) ──
     _, col, _ = st.columns([1, 2, 1])
     with col:
         st.markdown("""
-        <div style="min-height:70vh;display:flex;align-items:center;justify-content:center;padding:20px;position:relative;z-index:1;">
-            <div class="term-card" style="width:100%;max-width:440px;">
-                <div class="dot-group">
-                    <span class="r"></span><span class="y"></span><span class="g"></span>
-                    <span class="title">prospect_finder.exe</span>
-                </div>
-                <h1>🕵️ PROSPECT FINDER</h1>
-                <div class="sub">$ SECURE TERMINAL v1.0 — AUTHORIZATION REQUIRED</div>
-                <div style="margin-top:20px;">
-                    <div style="color:#808080;font-size:11px;margin-bottom:6px;text-align:center;">$ enter password:</div>
+        <div class="login-dots">
+            <span class="r"></span><span class="y"></span><span class="g"></span>
+            <span class="title">prospect_finder.exe</span>
+        </div>
+        <h1 style="text-align:center;color:#00FF88;font-size:24px;font-weight:700;margin-bottom:4px;margin-top:0;text-shadow:0 0 15px rgba(0,255,136,0.4);">🕵️ PROSPECT FINDER</h1>
+        <p style="text-align:center;color:#00FF88;font-size:12px;opacity:0.6;margin-bottom:0;">$ SECURE TERMINAL v1.0 — AUTHORIZATION REQUIRED</p>
+        <p style="text-align:center;color:#808080;font-size:11px;margin-top:24px;margin-bottom:6px;">$ enter password:</p>
         """, unsafe_allow_html=True)
 
         password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="")
 
         expected = st.secrets.get("password", os.environ.get("PROSPECT_PASSWORD", ""))
-        error_html = ""
         if password:
             if password == expected:
                 st.session_state.authenticated = True
                 st.rerun()
             else:
-                error_html = (
-                    '<div style="text-align:center;padding:8px;'
-                    'border:1px solid rgba(255,51,85,0.3);border-radius:6px;'
-                    'background:rgba(255,51,85,0.08);margin-top:10px;">'
-                    '<span style="color:#FF3355;font-size:13px;">'
-                    '✗ ACCESS DENIED — INCORRECT PASSWORD</span></div>'
-                )
-
-        st.markdown(f"""
+                st.markdown("""
+                <div style="text-align:center;padding:8px;border:1px solid rgba(255,51,85,0.3);border-radius:6px;background:rgba(255,51,85,0.08);margin-top:10px;">
+                    <span style="color:#FF3355;font-size:13px;">✗ ACCESS DENIED — INCORRECT PASSWORD</span>
                 </div>
-                {error_html}
-                <div class="footer-line">$ access --grant <span class="cursor"></span></div>
-            </div>
-        </div>
+                """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <p style="text-align:center;color:#00FF88;font-size:12px;opacity:0.5;margin-top:16px;">
+            $ access --grant <span style="display:inline-block;width:8px;height:15px;background:#00FF88;animation:blink 1s step-end infinite;vertical-align:middle;margin-left:4px;"></span>
+        </p>
         """, unsafe_allow_html=True)
 
     return False
