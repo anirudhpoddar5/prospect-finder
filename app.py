@@ -6,13 +6,243 @@ import io
 import csv
 from datetime import datetime
 
-# Must be the first Streamlit command
 st.set_page_config(
     page_title="Prospect Finder",
     page_icon="🕵️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# ─── CUSTOM CSS - MATRIX HACKER THEME ────────────────────────────────────
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+    * { font-family: 'JetBrains Mono', monospace; }
+
+    /* Matrix rain effect for login */
+    .matrix-login {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: #0A0D14;
+        display: flex; align-items: center; justify-content: center;
+        z-index: 9999;
+    }
+    .matrix-login::before {
+        content: '';
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background:
+            linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+        background-size: 40px 40px;
+        pointer-events: none;
+    }
+    .login-terminal {
+        background: #131720;
+        border: 1px solid #00FF88;
+        border-radius: 8px;
+        padding: 40px;
+        width: 420px;
+        box-shadow: 0 0 30px rgba(0,255,136,0.2), inset 0 0 30px rgba(0,255,136,0.05);
+        position: relative;
+        z-index: 1;
+    }
+    .login-terminal .title-bar {
+        color: #00FF88; font-size: 14px; margin-bottom: 24px;
+        display: flex; align-items: center; gap: 10px;
+    }
+    .login-terminal .title-bar .dot {
+        width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+    }
+    .login-terminal .title-bar .dot-red { background: #FF3355; }
+    .login-terminal .title-bar .dot-yellow { background: #FFD700; }
+    .login-terminal .title-bar .dot-green { background: #00FF88; }
+    .login-terminal h1 {
+        color: #00FF88; font-size: 22px; font-weight: 700;
+        margin-bottom: 8px; text-shadow: 0 0 10px rgba(0,255,136,0.5);
+    }
+    .login-terminal .prompt {
+        color: #00FF88; font-size: 13px; margin: 16px 0;
+        opacity: 0.7;
+    }
+    .login-terminal .cursor {
+        display: inline-block; width: 8px; height: 16px;
+        background: #00FF88; margin-left: 4px;
+        animation: blink 1s step-end infinite;
+        vertical-align: middle;
+    }
+    @keyframes blink {
+        50% { opacity: 0; }
+    }
+
+    /* Glass card */
+    .glass-card {
+        background: #131720;
+        border: 1px solid #2A3040;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 16px;
+        transition: border-color 0.3s;
+    }
+    .glass-card:hover { border-color: #00FF88; }
+
+    /* Terminal window card */
+    .terminal-card {
+        background: #0D1117;
+        border: 1px solid #1E2330;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 16px;
+    }
+    .terminal-card .term-header {
+        background: #1E2330;
+        padding: 8px 16px;
+        display: flex; align-items: center; gap: 8px;
+        border-bottom: 1px solid #2A3040;
+    }
+    .terminal-card .term-header .dot {
+        width: 10px; height: 10px; border-radius: 50%;
+    }
+    .terminal-card .term-body {
+        padding: 16px;
+        font-size: 13px;
+    }
+    .terminal-card .term-body .line {
+        color: #C0C0C0; margin: 4px 0;
+    }
+    .terminal-card .term-body .line-green { color: #00FF88; }
+    .terminal-card .term-body .line-cyan { color: #00D4FF; }
+    .terminal-card .term-body .line-red { color: #FF3355; }
+    .terminal-card .term-body .prompt { color: #00FF88; }
+
+    /* KPI cards */
+    .kpi-card {
+        background: linear-gradient(135deg, #131720 0%, #1A2030 100%);
+        border: 1px solid #2A3040;
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+        transition: border-color 0.3s;
+    }
+    .kpi-card:hover { border-color: #00FF88; }
+    .kpi-card .kpi-value {
+        font-size: 28px; font-weight: 700; color: #00FF88;
+        text-shadow: 0 0 10px rgba(0,255,136,0.3);
+    }
+    .kpi-card .kpi-label {
+        font-size: 11px; color: #808080; margin-top: 4px;
+        text-transform: uppercase; letter-spacing: 1px;
+    }
+    .kpi-card .kpi-delta {
+        font-size: 12px; margin-top: 4px;
+    }
+
+    /* Status dots */
+    .status-dot {
+        display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+        margin-right: 6px; vertical-align: middle;
+    }
+    .status-dot.green { background: #00FF88; box-shadow: 0 0 6px #00FF88; }
+    .status-dot.red { background: #FF3355; box-shadow: 0 0 6px #FF3355; }
+    .status-dot.gray { background: #404040; }
+
+    /* Hot badge */
+    .hot-badge {
+        display: inline-block;
+        background: rgba(255,51,85,0.15);
+        color: #FF3355;
+        border: 1px solid rgba(255,51,85,0.3);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+    .warm-badge {
+        display: inline-block;
+        background: rgba(255,215,0,0.15);
+        color: #FFD700;
+        border: 1px solid rgba(255,215,0,0.3);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    /* Scan button */
+    .stButton button {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-weight: 700 !important;
+        letter-spacing: 2px !important;
+    }
+    div[data-testid="column"] .stButton button {
+        width: 100%;
+    }
+
+    /* Sidebar */
+    section[data-testid="stSidebar"] .stMarkdown h3 {
+        font-size: 13px !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #808080 !important;
+        border-bottom: 1px solid #2A3040;
+        padding-bottom: 6px;
+        margin-top: 16px;
+    }
+
+    /* Override Streamlit defaults */
+    .stApp { background: #0A0D14; }
+    section[data-testid="stSidebar"] { background: #0D1117; border-right: 1px solid #1E2330; }
+    section[data-testid="stSidebar"] .stTextInput input,
+    section[data-testid="stSidebar"] .stTextArea textarea,
+    section[data-testid="stSidebar"] .stNumberInput input {
+        background: #0A0D14 !important;
+        border-color: #2A3040 !important;
+        color: #C0C0C0 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+    }
+    .stProgress > div > div > div > div {
+        background: #00FF88 !important;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 28px !important;
+        color: #00FF88 !important;
+    }
+    [data-testid="stMetricDelta"] {
+        font-size: 12px !important;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 13px !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .stTabs [aria-selected="true"] {
+        color: #00FF88 !important;
+    }
+
+    /* Table */
+    [data-testid="StyledDataFrameDataTable"] {
+        font-family: 'JetBrains Mono', monospace !important;
+    }
+
+    /* Dividers */
+    hr { border-color: #2A3040 !important; }
+
+    /* Expander */
+    .streamlit-expanderHeader {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 13px !important;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0A0D14; }
+    ::-webkit-scrollbar-thumb { background: #2A3040; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #00FF88; }
+</style>
+""", unsafe_allow_html=True)
 
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
 def check_password():
@@ -22,18 +252,34 @@ def check_password():
     if st.session_state.authenticated:
         return True
 
-    st.title("🕵️ Prospect Finder")
-    st.markdown("Enter the team password to continue.")
+    st.markdown(f"""
+    <div class="matrix-login">
+        <div class="login-terminal">
+            <div class="title-bar">
+                <span class="dot dot-red"></span>
+                <span class="dot dot-yellow"></span>
+                <span class="dot dot-green"></span>
+                <span style="margin-left:8px;font-size:11px;opacity:0.5;">prospect_finder.exe</span>
+            </div>
+            <h1>🕵️ PROSPECT FINDER</h1>
+            <div class="prompt">SECURE TERMINAL v1.0 — ENTER PASSWORD</div>
+            <div class="prompt" style="margin-top:8px;opacity:0.5;">
+                $ access --grant <span class="cursor"></span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    password = st.text_input("Password", type="password", label_visibility="collapsed")
-    expected = st.secrets.get("password", os.environ.get("PROSPECT_PASSWORD", ""))
-
-    if password:
-        if password == expected:
-            st.session_state.authenticated = True
-            st.rerun()
-        else:
-            st.error("Incorrect password")
+    cols = st.columns([1, 1.5, 1])
+    with cols[1]:
+        password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="")
+        expected = st.secrets.get("password", os.environ.get("PROSPECT_PASSWORD", ""))
+        if password:
+            if password == expected:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("$ ACCESS DENIED — INCORRECT PASSWORD")
     return False
 
 
@@ -89,138 +335,61 @@ def get_serpapi_key():
     return st.secrets.get("serpapi_key", os.environ.get("SERPAPI_KEY", ""))
 
 
-# ─── DEMO DATA ─────────────────────────────────────────────────────────────────
-def load_demo_data():
-    sample = [
-        {"name": "Glow Aesthetics Studio", "category": "med spa", "city": "Frisco", "state": "TX", "country": "US",
-         "phone": "(469) 555-0123", "website": "", "rating": 4.7, "review_count": 43,
-         "emails": ["hello@glowaesthetics.com"], "linkedin": "https://linkedin.com/company/glow-aesthetics",
-         "instagram": "https://instagram.com/glowaesthetics", "facebook": "https://facebook.com/glowaesthetics",
-         "has_website": False, "lead_priority": "Hot", "email_source": "DuckDuckGo",
-         "enrichment_notes": "Email found, no website"},
-        {"name": "Radiant Skin Med Spa", "category": "med spa", "city": "Frisco", "state": "TX", "country": "US",
-         "phone": "(972) 555-0456", "website": "https://radiantskinmedspa.com", "rating": 4.5, "review_count": 28,
-         "emails": ["info@radiantskinmedspa.com"], "linkedin": "", "instagram": "https://instagram.com/radiantskinmedspa",
-         "facebook": "https://facebook.com/radiantskinmedspa", "has_website": True, "lead_priority": "Hot",
-         "email_source": "Website", "enrichment_notes": "Email found"},
-        {"name": "Fresh Face Aesthetics", "category": "med spa", "city": "Scottsdale", "state": "AZ", "country": "US",
-         "phone": "(480) 555-0789", "website": "", "rating": 4.9, "review_count": 112,
-         "emails": [], "linkedin": "https://linkedin.com/in/jessica-freshface",
-         "instagram": "https://instagram.com/freshfaceaz", "facebook": "",
-         "has_website": False, "lead_priority": "Hot", "email_source": "",
-         "enrichment_notes": "LinkedIn found, no website"},
-        {"name": "Luxe Dermatology & Laser", "category": "med spa", "city": "Scottsdale", "state": "AZ", "country": "US",
-         "phone": "(480) 555-0345", "website": "https://luxedermscottsdale.com", "rating": 4.8, "review_count": 87,
-         "emails": ["contact@luxedermscottsdale.com"], "linkedin": "https://linkedin.com/company/luxe-dermatology",
-         "instagram": "https://instagram.com/luxederm", "facebook": "https://facebook.com/luxederm",
-         "has_website": True, "lead_priority": "Hot", "email_source": "Facebook",
-         "enrichment_notes": "Email found"},
-        {"name": "Chandler Beauty Lounge", "category": "med spa", "city": "Chandler", "state": "AZ", "country": "US",
-         "phone": "(480) 555-0678", "website": "", "rating": 4.6, "review_count": 35,
-         "emails": ["beautylounge.chandler@gmail.com"], "linkedin": "",
-         "instagram": "https://instagram.com/chandlerbeautylounge", "facebook": "https://facebook.com/ChandlerBeautyLounge",
-         "has_website": False, "lead_priority": "Hot", "email_source": "Instagram",
-         "enrichment_notes": "Email found, no website"},
-        {"name": "Elite Skin Studio", "category": "med spa", "city": "Chandler", "state": "AZ", "country": "US",
-         "phone": "", "website": "", "rating": 4.4, "review_count": 18,
-         "emails": [], "linkedin": "https://linkedin.com/in/elite-skin-studio",
-         "instagram": "", "facebook": "https://facebook.com/EliteSkinStudio",
-         "has_website": False, "lead_priority": "Hot", "email_source": "",
-         "enrichment_notes": "LinkedIn + Facebook found, no website"},
-        {"name": "Alpharetta Aesthetics Lab", "category": "med spa", "city": "Alpharetta", "state": "GA", "country": "US",
-         "phone": "(678) 555-0901", "website": "https://alpharettaaesthetics.com", "rating": 4.3, "review_count": 22,
-         "emails": ["hello@alpharettaaesthetics.com"], "linkedin": "", "instagram": "https://instagram.com/alphareaesthetics",
-         "facebook": "", "has_website": True, "lead_priority": "Hot", "email_source": "Website",
-         "enrichment_notes": "Email found"},
-        {"name": "Peach State Medical Spa", "category": "med spa", "city": "Alpharetta", "state": "GA", "country": "US",
-         "phone": "(770) 555-0234", "website": "", "rating": 4.1, "review_count": 9,
-         "emails": ["peachstatemedspa@yahoo.com"], "linkedin": "", "instagram": "",
-         "facebook": "https://facebook.com/PeachStateMedSpa", "has_website": False, "lead_priority": "Hot",
-         "email_source": "DuckDuckGo", "enrichment_notes": "Email found, no website"},
-        {"name": "Franklin Rejuvenation Center", "category": "med spa", "city": "Franklin", "state": "TN", "country": "US",
-         "phone": "(615) 555-0567", "website": "", "rating": 4.8, "review_count": 56,
-         "emails": [], "linkedin": "https://linkedin.com/company/franklin-rejuvenation",
-         "instagram": "https://instagram.com/franklinrejuvenation", "facebook": "",
-         "has_website": False, "lead_priority": "Hot", "email_source": "",
-         "enrichment_notes": "LinkedIn + Instagram found, no website"},
-        {"name": "Cool Springs Cosmetic Dentist", "category": "cosmetic dentistry", "city": "Franklin", "state": "TN", "country": "US",
-         "phone": "(615) 555-0890", "website": "https://coolspringsdentist.com", "rating": 4.9, "review_count": 134,
-         "emails": ["appointments@coolspringsdentist.com"], "linkedin": "",
-         "instagram": "https://instagram.com/coolspringsdentist", "facebook": "https://facebook.com/CoolSpringsDentist",
-         "has_website": True, "lead_priority": "Warm", "email_source": "DuckDuckGo",
-         "enrichment_notes": "Email found"},
-        {"name": "The London Facialist", "category": "med spa", "city": "London", "state": "UK", "country": "UK",
-         "phone": "+44 20 5555 0123", "website": "", "rating": 4.6, "review_count": 41,
-         "emails": ["info@thelondonfacialist.co.uk"], "linkedin": "", "instagram": "https://instagram.com/londonfacialist",
-         "facebook": "https://facebook.com/TheLondonFacialist", "has_website": False, "lead_priority": "Hot",
-         "email_source": "DuckDuckGo", "enrichment_notes": "Email found, no website"},
-        {"name": "Sydney Skin Co.", "category": "med spa", "city": "Sydney", "state": "AU", "country": "AU",
-         "phone": "+61 2 5555 6789", "website": "", "rating": 4.5, "review_count": 33,
-         "emails": ["hello@sydneyskinco.com.au"], "linkedin": "https://linkedin.com/company/sydney-skin-co",
-         "instagram": "https://instagram.com/sydneyskinco", "facebook": "",
-         "has_website": False, "lead_priority": "Hot", "email_source": "Instagram",
-         "enrichment_notes": "Email found, no website"},
-        {"name": "Elara Medical Spa", "category": "med spa", "city": "Singapore", "state": "SG", "country": "SG",
-         "phone": "+65 6789 0123", "website": "https://elaramedspa.sg", "rating": 4.7, "review_count": 62,
-         "emails": ["contact@elaramedspa.sg"], "linkedin": "https://linkedin.com/company/elara-medical-spa",
-         "instagram": "https://instagram.com/elaramedspa", "facebook": "https://facebook.com/ElaraMedicalSpa",
-         "has_website": True, "lead_priority": "Warm", "email_source": "Website",
-         "enrichment_notes": "Email found"},
-        {"name": "Mumbai Aesthetic Clinic", "category": "med spa", "city": "Mumbai", "state": "IN", "country": "IN",
-         "phone": "+91 22 5555 9876", "website": "", "rating": 4.3, "review_count": 27,
-         "emails": ["care@mumbaiaesthetics.in"], "linkedin": "",
-         "instagram": "https://instagram.com/mumbaiaesthetics", "facebook": "https://facebook.com/MumbaiAestheticClinic",
-         "has_website": False, "lead_priority": "Hot", "email_source": "DuckDuckGo",
-         "enrichment_notes": "Email found, no website"},
-    ]
-
-    stats = {
-        "total_found": len(sample),
-        "with_email": sum(1 for r in sample if r["emails"]),
-        "with_phone": sum(1 for r in sample if r["phone"]),
-        "no_website": sum(1 for r in sample if not r["has_website"]),
-        "with_linkedin": sum(1 for r in sample if r["linkedin"]),
-        "hot": sum(1 for r in sample if r["lead_priority"] == "Hot"),
-        "deduped": 0,
-        "skipped_no_contact": 0,
-    }
-
-    return sample, stats
-
-
-# ─── UI ────────────────────────────────────────────────────────────────────────
-st.title("🕵️ Prospect Finder")
-st.caption("Discover businesses worldwide with enriched contact data. Finds email, LinkedIn, Instagram, Facebook, and phone.")
-
-# Check API keys
+# ─── CHECK API KEYS ──────────────────────────────────────────────────────────────
 api_key = get_api_key()
 geoapify_key = get_geoapify_key()
 serpapi_key = get_serpapi_key()
+google_cx = get_google_cx()
 has_api_key = bool(api_key)
 has_geoapify = bool(geoapify_key)
 has_serpapi = bool(serpapi_key)
-if not has_api_key and not has_geoapify:
-    st.warning("⚠️ **No API keys found.** DuckDuckGo-only mode is limited. Set Google Places or Geoapify key in secrets for better results. Use **Load Demo Data** to test the UI.")
+has_cx = bool(google_cx)
 
+# ─── MAIN HEADER ─────────────────────────────────────────────────────────────────
+st.markdown("""
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
+    <span style="font-size:28px;">🕵️</span>
+    <span style="font-size:22px;font-weight:700;color:#00FF88;text-shadow:0 0 10px rgba(0,255,136,0.3);">PROSPECT FINDER</span>
+    <span style="font-size:11px;color:#404040;margin-left:auto;">v1.0</span>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ─── SIDEBAR ─────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.header("⚙️ Settings")
+    st.markdown("""
+    <h3 style="margin-top:0;">🔑 STATUS</h3>
+    """, unsafe_allow_html=True)
 
-    st.subheader("Business Types")
+    api_status = []
+    api_status.append(f'<span class="status-dot {"green" if has_api_key else "red"}"></span> Google Places {"✅" if has_api_key else "❌"}')
+    api_status.append(f'<span class="status-dot {"green" if has_geoapify else "gray"}"></span> Geoapify {"✅" if has_geoapify else "—"}')
+    api_status.append(f'<span class="status-dot {"green" if has_serpapi else "gray"}"></span> SerpAPI {"✅" if has_serpapi else "—"}')
+    api_status.append(f'<span class="status-dot {"green" if has_cx else "gray"}"></span> Custom Search {"✅" if has_cx else "—"}')
+
+    st.markdown(
+        '<div style="font-size:12px;line-height:2;">' + "<br>".join(api_status) + "</div>",
+        unsafe_allow_html=True
+    )
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # ── TARGET ──────────────────────────────────────────────────────────────────
+    st.markdown("<h3>🎯 TARGET</h3>", unsafe_allow_html=True)
+
     type_input = st.text_area(
-        "One per line or comma-separated",
+        "Business Types",
         height=80,
         label_visibility="collapsed",
-        placeholder="e.g. dentist, home decor store, block print"
+        placeholder="dentist, med spa, chiropractor"
     )
     business_types = [t.strip() for t in type_input.replace("\n", ",").split(",") if t.strip()]
 
-    st.subheader("Locations")
-    st.caption("Format: City, State/Country (e.g. London, UK or Mumbai, IN)")
     loc_input = st.text_area(
-        "One per line",
-        height=130,
+        "Locations (City, State)",
+        height=100,
         label_visibility="collapsed",
-        placeholder="London, UK\nNew York, NY, US\nMumbai, MH, IN"
+        placeholder="Austin, TX\nScottsdale, AZ\nLondon, UK"
     )
     locations = []
     for line in loc_input.strip().split("\n"):
@@ -230,7 +399,6 @@ with st.sidebar:
         parts = [p.strip() for p in line.split(",")]
         city = parts[0]
         rest = parts[1].strip() if len(parts) > 1 else ""
-        # Infer country from state
         us_states = {"TX", "AZ", "GA", "TN", "NC", "CA", "NY", "FL", "IL", "CO", "WA", "OR", "NV"}
         uk_cities = {"london", "manchester", "birmingham", "edinburgh", "glasgow", "bristol", "liverpool"}
         au_cities = {"sydney", "melbourne", "brisbane", "perth", "adelaide", "gold coast"}
@@ -261,174 +429,123 @@ with st.sidebar:
 
         locations.append({"city": city, "state": state, "country": country})
 
-    # Country indicators for each location
-    country_emojis = {"US": "🇺🇸", "UK": "🇬🇧", "AU": "🇦🇺", "SG": "🇸🇬", "IN": "🇮🇳"}
-    for loc in locations:
-        emoji = country_emojis.get(loc["country"], "🌍")
-        st.caption(f"  {emoji} {loc['city']}, {loc['state']} ({loc['country']})")
+    if locations:
+        country_emojis = {"US": "🇺🇸", "UK": "🇬🇧", "AU": "🇦🇺", "SG": "🇸🇬", "IN": "🇮🇳"}
+        loc_preview = " &nbsp;| ".join(
+            f"{country_emojis.get(l['country'], '🌍')} {l['city']}" for l in locations[:5]
+        )
+        st.markdown(f'<div style="font-size:11px;color:#808080;">{loc_preview}</div>', unsafe_allow_html=True)
 
-    st.divider()
+    st.markdown("<hr>", unsafe_allow_html=True)
 
-    st.subheader("Dedup (optional)")
-    uploaded_file = st.file_uploader(
-        "Upload existing CSV to avoid duplicates",
-        type=["csv"],
-        label_visibility="collapsed",
-    )
-    if uploaded_file:
-        st.session_state.uploaded_csv = uploaded_file
-        st.success(f"✅ Loaded: {uploaded_file.name}")
-    else:
-        st.session_state.uploaded_csv = None
-
-    st.divider()
-
-    if has_geoapify:
-        st.caption("✅ Geoapify key detected — fast discovery enabled")
-    st.session_state.geoapify_key = geoapify_key
-
-    if has_serpapi:
-        st.caption("✅ SerpAPI key detected — extra discovery & enrichment")
-    st.session_state.serpapi_key = serpapi_key
-
-    st.divider()
-
-    google_cx = get_google_cx()
-    has_cx = bool(google_cx)
-    st.subheader("🔍 Custom Web Search")
+    # ── CUSTOM SEARCH ────────────────────────────────────────────────────────────
+    st.markdown("<h3>🌐 CUSTOM SEARCH</h3>", unsafe_allow_html=True)
     custom_query = st.text_area(
-        "Google Custom Search query (100/day free)",
+        "Google Custom Search query",
         height=60,
         label_visibility="collapsed",
-        placeholder='e.g. site:etsy.com "block print" bedcovers',
-        help="Uses Google Custom Search API. CX key must be set in secrets."
+        placeholder='site:etsy.com "block print" bedcovers',
+        help="Requires google_cx in secrets"
     )
     if not has_cx:
-        st.caption("⚠️ Set `google_cx` in secrets to enable")
+        st.markdown('<div style="font-size:11px;color:#FF3355;">⚠️ CX key not set in secrets</div>', unsafe_allow_html=True)
     elif custom_query.strip():
-        st.caption(f"Will search: {custom_query[:60]}")
+        st.markdown(f'<div style="font-size:11px;color:#00D4FF;">$ will search: {custom_query[:60]}</div>', unsafe_allow_html=True)
     st.session_state.custom_query = custom_query.strip() if has_cx else ""
     st.session_state.google_cx = google_cx
 
-    with st.expander("💡 Search ideas", expanded=False):
+    with st.expander("💡 Search ideas"):
         st.markdown("""
-**For block printing:**  
 `"home decor" "block print" UK`  
-`"textile shop" "block print" Instagram`  
 `site:etsy.com "block print" bedcovers`  
-`"boutique" "hand block print" Clothing`  
-
-**For SaaS prospects:**  
 `"Shopify store" email contact`  
-`"ecommerce" founder LinkedIn UK`  
-`"digital agency" "no CRM"`  
-`"WordPress site" "email marketing"`  
-
-**For content writing / blog outreach:**  
-`"home decor" blog "write for us"`  
-`"textile" magazine "guest post"`  
-`"interior design" blog "contributor"`  
-
-**For any business + email:**  
-`"home decor store" London email`  
-`site:facebook.com "textile shop" UK`  
+`"ecommerce" founder LinkedIn UK`
 """)
 
-    st.divider()
+    st.markdown("<hr>", unsafe_allow_html=True)
 
-    st.subheader("⛔ Blacklist Domains")
+    # ── FILTERS ───────────────────────────────────────────────────────────────────
+    st.markdown("<h3>⛔ FILTERS</h3>", unsafe_allow_html=True)
+
     blacklist_input = st.text_input(
-        "Exclude these domains (comma-separated)",
+        "Exclude domains",
         placeholder="competitor.com, etsy.com",
         label_visibility="collapsed",
     )
     st.session_state.blacklist_domains = [d.strip().lower() for d in blacklist_input.split(",") if d.strip()]
 
-    st.divider()
-
-    st.subheader("Max Leads")
     max_leads = st.number_input(
-        "Max prospects per location (0 = unlimited)",
+        "Max per location",
         min_value=0, max_value=100, value=10, step=5,
         label_visibility="collapsed",
-        help="Limits how many prospects to enrich per city. Keeps scans fast.",
     )
     if max_leads:
-        st.caption(f"⏱ Will process up to **{max_leads}** prospects per location")
+        st.markdown(f'<div style="font-size:11px;color:#808080;">⏱ {max_leads} prospects per city</div>', unsafe_allow_html=True)
 
     keep_no_contact = st.checkbox(
-        "Keep businesses with no contact info",
+        "Keep no-contact entries",
         value=False,
-        help="When checked, businesses without email/phone/website are kept in results.",
     )
-    if keep_no_contact:
-        st.caption("📋 Will include businesses missing email, phone, and website")
-
-    st.divider()
 
     st.session_state.max_leads = max_leads
 
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # ── DEDUP ─────────────────────────────────────────────────────────────────────
+    st.markdown("<h3>📂 DEDUP</h3>", unsafe_allow_html=True)
+    uploaded_file = st.file_uploader(
+        "Upload existing CSV to skip duplicates",
+        type=["csv"],
+        label_visibility="collapsed",
+    )
+    if uploaded_file:
+        st.session_state.uploaded_csv = uploaded_file
+        st.markdown(f'<div style="font-size:11px;color:#00FF88;">$ Loaded: {uploaded_file.name}</div>', unsafe_allow_html=True)
+    else:
+        st.session_state.uploaded_csv = None
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # ── SCAN / STOP BUTTONS ──────────────────────────────────────────────────────
     col1, col2 = st.columns(2)
     with col1:
         enabled = not st.session_state.scan_running
-        sources = []
-        if has_api_key: sources.append("Google")
-        if has_geoapify: sources.append("Geoapify")
-        if has_serpapi: sources.append("SerpAPI")
-        sources.append("DuckDuckGo")
-        btn_label = f"🔍 Scan ({'+'.join(sources)})"
         start_btn = st.button(
-            btn_label,
+            "🖥 SCAN",
             type="primary",
-            width="stretch",
+            use_container_width=True,
             disabled=not enabled,
         )
     with col2:
         st.button(
-            "⏹ Stop",
-            on_click=stop_scan,
-            width="stretch",
+            "⏹ STOP",
+            use_container_width=True,
             disabled=not st.session_state.scan_running,
+            on_click=stop_scan,
         )
 
-    demo_btn = st.button(
-        "🎲 Load Demo Data",
-        width="stretch",
-        disabled=st.session_state.scan_running,
-    )
-
     if st.session_state.scan_running:
-        st.button("🔄 Reset", on_click=reset_scan, width="stretch")
+        st.button("🔄 RESET", use_container_width=True, on_click=reset_scan)
+
+    # ── HISTORY ──────────────────────────────────────────────────────────────────
+    if st.session_state.scan_history:
+        st.markdown("<hr>", unsafe_allow_html=True)
+        st.markdown("<h3>📋 HISTORY</h3>", unsafe_allow_html=True)
+        for h in reversed(st.session_state.scan_history[-5:]):
+            st.markdown(
+                f'<div style="font-size:11px;color:#808080;border-left:2px solid #00FF88;padding-left:8px;margin:6px 0;">'
+                f'<span style="color:#00FF88;">$</span> {h["timestamp"]}<br>'
+                f'  → {h["found"]} leads · {h["email"]} 📧 · {h["hot"]} 🔥'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
 # ─── MAIN PANEL ────────────────────────────────────────────────────────────────
-
-# Progress + live results area
 scan_container = st.container()
 live_container = st.container()
 results_container = st.container()
 
-# Demo button handler
-if demo_btn:
-    demo_results, demo_stats = load_demo_data()
-    st.session_state.scan_running = False
-    st.session_state.scan_results = demo_results
-    st.session_state.scan_stats = demo_stats
-    st.session_state.stop_flag = False
-    st.session_state.partial_count = 0
-
-    scan_record = {
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "types": "demo data",
-        "locations": "US, UK, AU, SG, IN",
-        "found": len(demo_results),
-        "email": demo_stats["with_email"],
-        "hot": demo_stats["hot"],
-        "deduped": 0,
-    }
-    st.session_state.scan_history.append(scan_record)
-    st.rerun()
-
-# Scan logic
+# ─── SCAN LOGIC ─────────────────────────────────────────────────────────────────
 if start_btn:
     st.session_state.scan_running = True
     st.session_state.stop_flag = False
@@ -453,14 +570,14 @@ if st.session_state.scan_running:
     from scraper import init_scan_state, run_scan_step, _scan_stop_event
 
     max_leads = st.session_state.get("max_leads", 10)
+    keep_no_contact = st.session_state.get("keep_no_contact", False)
 
     with scan_container:
-        progress_bar = st.progress(0, text="⏳ Initializing scan...")
-        status_text = st.info("Preparing to discover businesses...")
+        status_box = st.container()
+        progress_bar = st.progress(0, text="⏳ Initializing...")
         phase_text = st.empty()
         live_table = st.empty()
 
-    # Initialize scan state on first run, resume on subsequent reruns
     if "scan_state" not in st.session_state or st.session_state.scan_state is None:
         st.session_state.scan_state = init_scan_state(
             api_key=api_key,
@@ -478,7 +595,6 @@ if st.session_state.scan_running:
 
     state = st.session_state.scan_state
 
-    # Check stop before each step
     if st.session_state.stop_flag:
         _scan_stop_event.set()
         state.step = "stopped"
@@ -490,16 +606,16 @@ if st.session_state.scan_running:
     t = update["type"]
 
     if t == "status":
-        status_text.info(update["message"])
+        with status_box:
+            st.markdown(f'<div style="font-size:13px;"><span style="color:#00FF88;">$</span> {update["message"]}</div>', unsafe_allow_html=True)
         st.session_state.scan_message = update["message"]
         st.rerun()
 
     elif t == "phase":
         progress_bar.progress(min(update.get("progress", 0), 1.0), text=update["message"])
         phase = update.get("phase", 1)
-        label = "📡 Phase 1: Discovering..." if phase == 1 else "🔎 Phase 2: Enriching..."
-        phase_text.info(label)
-        status_text.info(update["message"])
+        label = "📡 SCANNING..." if phase == 1 else "🔎 ENRICHING..."
+        phase_text.markdown(f'<div style="color:#00FF88;font-weight:600;font-size:14px;">$ {label}</div>', unsafe_allow_html=True)
         st.rerun()
 
     elif t == "enrichment_progress":
@@ -507,29 +623,30 @@ if st.session_state.scan_running:
         if result:
             st.session_state.partial_count = len(state.all_results)
 
-        waiting = " ⏹ Stopping..." if st.session_state.stop_flag else ""
-        meta = f"Found {len(state.all_results)} enriched prospects so far{waiting}"
+        waiting = " ⏹ ABORTING..." if st.session_state.stop_flag else ""
+        meta = f"$ {len(state.all_results)} prospects enriched{waiting}"
 
         if state.all_results:
             preview = state.all_results[-15:]
             rows = []
             for r in preview:
+                priority_badge = "🔥" if r["lead_priority"] == "Hot" else "👍"
                 rows.append({
-                    "🔥": "🔥" if r["lead_priority"] == "Hot" else "👍",
-                    "Business": r["name"][:35],
-                    "Email": r["emails"][0] if r["emails"] else "—",
-                    "Phone": r["phone"] or "—",
+                    "": priority_badge,
+                    "BUSINESS": r["name"][:35],
+                    "EMAIL": r["emails"][0] if r["emails"] else "—",
+                    "PHONE": r["phone"] or "—",
                     "LI": "✅" if r["linkedin"] else "",
-                    "FB/IG": "✅" if r["facebook"] or r["instagram"] else "",
+                    "SOCIAL": "✅" if r["facebook"] or r["instagram"] else "",
                 })
             live_table.dataframe(
                 rows,
-                width="stretch",
+                use_container_width=True,
                 height=min(420, 28 * len(rows) + 28),
                 column_config={
-                    "🔥": st.column_config.TextColumn(width="small"),
-                    "Business": st.column_config.TextColumn(width="medium"),
-                    "Email": st.column_config.TextColumn(width="medium"),
+                    "": st.column_config.TextColumn(width="small"),
+                    "BUSINESS": st.column_config.TextColumn(width="medium"),
+                    "EMAIL": st.column_config.TextColumn(width="medium"),
                 },
             )
         else:
@@ -540,7 +657,7 @@ if st.session_state.scan_running:
         st.rerun()
 
     elif t == "error":
-        status_text.error(update["message"])
+        st.markdown(f'<div style="color:#FF3355;font-size:13px;">$ ERROR: {update["message"]}</div>', unsafe_allow_html=True)
         st.rerun()
 
     elif t == "complete":
@@ -551,7 +668,6 @@ if st.session_state.scan_running:
         st.session_state.scan_running = False
         st.session_state.partial_count = len(results)
         st.session_state.scan_state = None
-        # scan_stopped persists for "stopped" banner; clear only on normal completion
         if not st.session_state.stop_flag:
             st.session_state.scan_stopped = False
 
@@ -577,153 +693,224 @@ if st.session_state.scan_results is not None:
     stats = st.session_state.scan_stats
 
     with results_container:
-        st.divider()
-
         if not results:
             if st.session_state.scan_stopped:
-                st.info("⏹ Scan stopped before any prospects were found. Try again with different settings or wait longer.")
+                st.markdown('<div style="color:#FFD700;font-size:13px;">$ SCAN ABORTED — no results</div>', unsafe_allow_html=True)
             else:
-                st.warning("No prospects found. Try different locations or business types.")
+                st.markdown('<div style="color:#FF3355;font-size:13px;">$ NO RESULTS — try different settings</div>', unsafe_allow_html=True)
         else:
             if st.session_state.scan_stopped:
-                st.info(f"⏹ Scan stopped — showing {len(results)} partial results.")
-            st.subheader("📊 Results")
+                st.markdown(f'<div style="color:#FFD700;font-size:13px;">$ PARTIAL RESULTS — {len(results)} leads</div>', unsafe_allow_html=True)
+            st.markdown("<hr>", unsafe_allow_html=True)
 
         if results:
-            # Summary cards
+            # ── KPI CARDS ────────────────────────────────────────────────────────
+            st.markdown("<h3>📊 SUMMARY</h3>", unsafe_allow_html=True)
             kpi_cols = st.columns(6)
-            with kpi_cols[0]:
-                st.metric("Total Prospects", stats["total_found"])
-            with kpi_cols[1]:
-                pct = f"{stats['with_email'] / stats['total_found'] * 100:.0f}%" if stats["total_found"] else "0%"
-                st.metric("📧 With Email", stats["with_email"], pct)
-            with kpi_cols[2]:
-                st.metric("🔥 Hot Leads", stats["hot"])
-            with kpi_cols[3]:
-                st.metric("🌐 No Website", stats["no_website"])
-            with kpi_cols[4]:
-                st.metric("🔗 With LinkedIn", stats["with_linkedin"])
-            with kpi_cols[5]:
-                st.metric("📞 With Phone", stats["with_phone"])
+            kpis = [
+                ("TOTAL", stats["total_found"]),
+                ("📧 EMAIL", stats["with_email"]),
+                ("🔥 HOT", stats["hot"]),
+                ("🌐 NO SITE", stats["no_website"]),
+                ("🔗 LINKEDIN", stats["with_linkedin"]),
+                ("📞 PHONE", stats["with_phone"]),
+            ]
+            for i, (label, val) in enumerate(kpis):
+                with kpi_cols[i]:
+                    st.markdown(
+                        f'<div class="kpi-card">'
+                        f'<div class="kpi-value">{val}</div>'
+                        f'<div class="kpi-label">{label}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
 
             if stats["deduped"]:
-                st.caption(f"⏭ {stats['deduped']} duplicates skipped")
+                st.markdown(f'<div style="font-size:12px;color:#808080;">$ {stats["deduped"]} duplicates skipped</div>', unsafe_allow_html=True)
             if stats["skipped_no_contact"]:
-                st.caption(f"⏭ {stats['skipped_no_contact']} excluded (no contact info)")
+                st.markdown(f'<div style="font-size:12px;color:#808080;">$ {stats["skipped_no_contact"]} excluded (no contact)</div>', unsafe_allow_html=True)
 
-            # Build DataFrame
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # ── TABS ──────────────────────────────────────────────────────────────
+            tab_all, tab_hot, tab_stats = st.tabs(["📋 ALL RESULTS", "🔥 HOT LEADS", "📊 STATS"])
+
             df_rows = []
             for r in results:
+                priority = "🔥" if r["lead_priority"] == "Hot" else "👍"
                 df_rows.append({
-                    "🔥 Priority": "🔥" if r["lead_priority"] == "Hot" else "👍",
-                    "Business Name": r["name"],
-                    "Contact": f"{r.get('contact_person', '')}" + (f" ({r.get('contact_title', '')})" if r.get('contact_title') else ""),
-                    "Category": r["category"].title(),
-                    "City": r["city"],
-                    "State": r["state"],
-                    "Country": r["country"],
-                    "📧 Email": r["emails"][0] if r["emails"] else "",
-                    "🔗 LinkedIn": r["linkedin"],
-                    "📸 Instagram": r["instagram"],
-                    "📘 Facebook": r["facebook"],
-                    "📞 Phone": r["phone"],
-                    "🌐 Website": r["website"] if r["has_website"] else "❌ No website",
-                    "⭐ Rating": r["rating"] if r["rating"] else "",
-                    "📝 Reviews": r["review_count"],
-                    "Email Source": r["email_source"],
-                    "Notes": r["enrichment_notes"],
+                    "": priority,
+                    "BUSINESS": r["name"],
+                    "CONTACT": f"{r.get('contact_person', '')}" + (f" ({r.get('contact_title', '')})" if r.get('contact_title') else ""),
+                    "CATEGORY": r["category"].title(),
+                    "CITY": r["city"],
+                    "STATE": r["state"],
+                    "EMAIL": r["emails"][0] if r["emails"] else "",
+                    "LINKEDIN": r["linkedin"],
+                    "INSTAGRAM": r["instagram"],
+                    "FACEBOOK": r["facebook"],
+                    "PHONE": r["phone"],
+                    "WEBSITE": r["website"] if r["has_website"] else "❌ No site",
+                    "RATING": r["rating"] if r["rating"] else "",
+                    "REVIEWS": r["review_count"],
+                    "SOURCE": r["email_source"],
+                    "NOTES": r["enrichment_notes"],
                 })
 
             df = pd.DataFrame(df_rows)
 
-            st.dataframe(
-                df,
-                width="stretch",
-                height=min(400, 40 * len(df_rows) + 40),
-                column_config={
-                    "🔥 Priority": st.column_config.TextColumn(width="small"),
-                    "Business Name": st.column_config.TextColumn(width="medium"),
-                    "📧 Email": st.column_config.TextColumn(width="medium"),
-                    "🌐 Website": st.column_config.TextColumn(width="medium"),
-                    "📞 Phone": st.column_config.TextColumn(width="medium"),
-                },
-            )
-
-            # Export
-            st.divider()
-            st.subheader("📥 Export")
-
-            csv_buffer = io.StringIO()
-            df.to_csv(csv_buffer, index=False)
-            csv_data = csv_buffer.getvalue()
-
-            export_col1, export_col2 = st.columns(2)
-            with export_col1:
-                st.download_button(
-                    label="📥 Download Full CSV",
-                    data=csv_data,
-                    file_name=f"prospects_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    width="stretch",
+            with tab_all:
+                st.dataframe(
+                    df,
+                    use_container_width=True,
+                    height=min(500, 40 * len(df_rows) + 40),
+                    column_config={
+                        "": st.column_config.TextColumn(width="small"),
+                        "BUSINESS": st.column_config.TextColumn(width="medium"),
+                        "EMAIL": st.column_config.TextColumn(width="medium"),
+                        "WEBSITE": st.column_config.TextColumn(width="medium"),
+                        "PHONE": st.column_config.TextColumn(width="medium"),
+                    },
                 )
 
-            import_rows = []
-            for i, r in enumerate(results, 1):
-                emails = "; ".join(r["emails"]) if r["emails"] else ""
-                import_rows.append({
-                    "#": i,
-                    "CATEGORY": r["category"].title(),
-                    "CITY": r["city"],
-                    "STATE": r["state"],
-                    "TIER": 1,
-                    "CLINIC NAME": r["name"],
-                    "CONTACT PERSON": r.get("contact_person", ""),
-                    "TITLE": r.get("contact_title", ""),
-                    "EMAIL": emails,
-                    "PHONE": r["phone"],
-                    "WEBSITE": r["website"],
-                    "LINKEDIN (Person)": r.get("linkedin_person", ""),
-                    "LINKEDIN (Company)": r.get("linkedin_company", "") or r.get("linkedin", ""),
-                    "INSTAGRAM": r["instagram"],
-                    "FACEBOOK": r["facebook"],
-                    "LEAD PRIORITY": r["lead_priority"],
-                    "NOTES": r["enrichment_notes"],
-                })
+                # Export
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("<h4>📥 EXPORT</h4>", unsafe_allow_html=True)
+                csv_buffer = io.StringIO()
+                df.to_csv(csv_buffer, index=False)
+                csv_data = csv_buffer.getvalue()
 
-            import_df = pd.DataFrame(import_rows)
-            import_csv = import_df.to_csv(index=False)
+                export_col1, export_col2 = st.columns(2)
+                with export_col1:
+                    st.download_button(
+                        label="📥 Download CSV",
+                        data=csv_data,
+                        file_name=f"prospects_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                    )
 
-            with export_col2:
-                st.download_button(
-                    label="📥 Download Import-Ready CSV",
-                    data=import_csv,
-                    file_name=f"prospects_import_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    width="stretch",
+                import_rows = []
+                for i, r in enumerate(results, 1):
+                    emails = "; ".join(r["emails"]) if r["emails"] else ""
+                    import_rows.append({
+                        "#": i,
+                        "CATEGORY": r["category"].title(),
+                        "CITY": r["city"],
+                        "STATE": r["state"],
+                        "TIER": 1,
+                        "CLINIC NAME": r["name"],
+                        "CONTACT PERSON": r.get("contact_person", ""),
+                        "TITLE": r.get("contact_title", ""),
+                        "EMAIL": emails,
+                        "PHONE": r["phone"],
+                        "WEBSITE": r["website"],
+                        "LINKEDIN (Person)": r.get("linkedin_person", ""),
+                        "LINKEDIN (Company)": r.get("linkedin_company", "") or r.get("linkedin", ""),
+                        "INSTAGRAM": r["instagram"],
+                        "FACEBOOK": r["facebook"],
+                        "LEAD PRIORITY": r["lead_priority"],
+                        "NOTES": r["enrichment_notes"],
+                    })
+
+                import_df = pd.DataFrame(import_rows)
+                import_csv = import_df.to_csv(index=False)
+
+                with export_col2:
+                    st.download_button(
+                        label="📥 Import-Ready CSV",
+                        data=import_csv,
+                        file_name=f"prospects_import_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                    )
+
+            with tab_hot:
+                hot_df = df[df[""] == "🔥"].copy()
+                if not hot_df.empty:
+                    st.dataframe(
+                        hot_df,
+                        use_container_width=True,
+                        height=min(400, 40 * len(hot_df) + 40),
+                        column_config={
+                            "": st.column_config.TextColumn(width="small"),
+                            "BUSINESS": st.column_config.TextColumn(width="medium"),
+                            "EMAIL": st.column_config.TextColumn(width="medium"),
+                        },
+                    )
+                else:
+                    st.markdown('<div style="font-size:13px;color:#808080;">$ No hot leads found</div>', unsafe_allow_html=True)
+
+            with tab_stats:
+                st.markdown(
+                    f"""
+                    <div class="glass-card">
+                        <div style="font-size:13px;line-height:2;">
+                            <span style="color:#00FF88;">$</span> Total discovered: <strong>{stats['total_found']}</strong><br>
+                            <span style="color:#00FF88;">$</span> With email: <strong>{stats['with_email']}</strong> ({stats['with_email']/stats['total_found']*100:.0f}%)<br>
+                            <span style="color:#00FF88;">$</span> With phone: <strong>{stats['with_phone']}</strong><br>
+                            <span style="color:#00FF88;">$</span> With LinkedIn: <strong>{stats['with_linkedin']}</strong><br>
+                            <span style="color:#00FF88;">$</span> No website: <strong>{stats['no_website']}</strong><br>
+                            <span style="color:#00FF88;">$</span> Hot leads: <strong>{stats['hot']}</strong><br>
+                            <span style="color:#00FF88;">$</span> Duplicates skipped: <strong>{stats['deduped']}</strong><br>
+                            <span style="color:#00FF88;">$</span> Excluded (no contact): <strong>{stats['skipped_no_contact']}</strong>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
-
-            # Hot leads quick view
-            hot_df = df[df["🔥 Priority"] == "🔥"].copy()
-            if not hot_df.empty:
-                st.divider()
-                st.subheader("🔥 Hot Leads")
-                st.dataframe(hot_df, width="stretch", height=min(300, 40 * len(hot_df) + 40))
 
 elif not st.session_state.scan_running:
     with results_container:
-        st.divider()
-        if has_api_key:
-            st.info("👈 Configure your search in the sidebar and click **Start Scan**.")
-        else:
-            st.info("👈 Click **🎲 Load Demo Data** to test the full UI with sample prospects. Add your Google API key to run real scans.")
-
-# ─── HISTORY ────────────────────────────────────────────────────────────────────
-with st.sidebar:
-    if st.session_state.scan_history:
-        st.divider()
-        st.subheader("📋 Scan History")
-        for h in reversed(st.session_state.scan_history[-10:]):
-            st.caption(
-                f"{h['timestamp']} — {h['locations'][:40]}...\n"
-                f"  → {h['found']} found, {h['email']} emails, {h['hot']} hot"
-            )
+        st.markdown(
+            f"""
+            <div style="display:flex;gap:16px;margin-top:16px;flex-wrap:wrap;">
+                <div class="terminal-card" style="flex:1;min-width:200px;">
+                    <div class="term-header">
+                        <span class="dot" style="background:#FF3355;"></span>
+                        <span class="dot" style="background:#FFD700;"></span>
+                        <span class="dot" style="background:#00FF88;"></span>
+                        <span style="margin-left:8px;font-size:11px;color:#808080;">discover.exe</span>
+                    </div>
+                    <div class="term-body">
+                        <div class="line-green">$ scan --discover</div>
+                        <div class="line">Search across Google Places, Geoapify,</div>
+                        <div class="line">SerpAPI, DuckDuckGo, and Etsy</div>
+                        <div class="line">Finds businesses by type + location</div>
+                    </div>
+                </div>
+                <div class="terminal-card" style="flex:1;min-width:200px;">
+                    <div class="term-header">
+                        <span class="dot" style="background:#FF3355;"></span>
+                        <span class="dot" style="background:#FFD700;"></span>
+                        <span class="dot" style="background:#00FF88;"></span>
+                        <span style="margin-left:8px;font-size:11px;color:#808080;">enrich.exe</span>
+                    </div>
+                    <div class="term-body">
+                        <div class="line-green">$ scan --enrich</div>
+                        <div class="line">Extracts emails, phones, LinkedIn,</div>
+                        <div class="line">Instagram, and Facebook from web</div>
+                        <div class="line">Scrapes websites and social profiles</div>
+                    </div>
+                </div>
+                <div class="terminal-card" style="flex:1;min-width:200px;">
+                    <div class="term-header">
+                        <span class="dot" style="background:#FF3355;"></span>
+                        <span class="dot" style="background:#FFD700;"></span>
+                        <span class="dot" style="background:#00FF88;"></span>
+                        <span style="margin-left:8px;font-size:11px;color:#808080;">export.exe</span>
+                    </div>
+                    <div class="term-body">
+                        <div class="line-green">$ scan --export</div>
+                        <div class="line">Download results as CSV</div>
+                        <div class="line">Import-ready format for your CRM</div>
+                        <div class="line">Auto-dedup against existing lists</div>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align:center;margin-top:24px;font-size:13px;color:#404040;">
+                $ Configure targets in the sidebar and run <span style="color:#00FF88;">SCAN</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
