@@ -6,8 +6,6 @@ import io
 import csv
 from datetime import datetime
 
-STREAMLIT_CLOUD_DEPLOY = True
-
 st.set_page_config(
     page_title="Prospect Finder",
     page_icon="🕵️",
@@ -23,40 +21,43 @@ st.markdown("""
     * { font-family: 'JetBrains Mono', monospace; }
 
     /* ─── MATRIX RAIN ────────────────────────────────────────────────────── */
-    @keyframes matrixDrop {
-        0% { transform: translateY(-100%); opacity: 1; }
-        100% { transform: translateY(100vh); opacity: 0; }
+    .matrix-rain {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        overflow: hidden; z-index: 0; pointer-events: none;
+        background: #0A0D14;
+    }
+    .rain-column {
+        position: absolute; top: -120%;
+        writing-mode: vertical-lr;
+        text-orientation: upright;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 14px;
+        line-height: 1;
+        color: rgba(0, 255, 136, 0.45);
+        white-space: nowrap;
+        animation: matrixRain linear infinite;
+        user-select: none;
+        letter-spacing: 2px;
+    }
+    @keyframes matrixRain {
+        0% { transform: translateY(-100%); opacity: 0; }
+        8% { opacity: 0.6; }
+        85% { opacity: 0.6; }
+        100% { transform: translateY(110vh); opacity: 0; }
     }
     @keyframes blink {
         50% { opacity: 0; }
     }
-    /* Background grid overlay */
-    .matrix-bg {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        z-index: -1; pointer-events: none;
-    }
-    .matrix-bg .grid {
-        width: 100%; height: 100%;
-        background-image:
-            linear-gradient(rgba(0,255,136,0.04) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0,255,136,0.04) 1px, transparent 1px);
-        background-size: 50px 50px;
-    }
-    /* Terminal card (for login & empty state) */
+    /* Terminal card (for login) */
     .term-card {
-        background: #131720;
+        background: linear-gradient(135deg, #131720 0%, #1A2030 100%);
         border: 1px solid #00FF88;
-        border-radius: 10px;
-        padding: 36px 40px 20px;
+        border-radius: 12px;
+        padding: 32px 36px 24px;
         box-shadow: 0 0 40px rgba(0,255,136,0.15), 0 0 80px rgba(0,255,136,0.05);
-        animation: matrixFlicker 4s infinite;
-    }
-    @keyframes matrixFlicker {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.85; }
     }
     .term-card .dot-group {
-        display: flex; align-items: center; gap: 8px; margin-bottom: 24px;
+        display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
     }
     .term-card .dot-group span {
         width: 12px; height: 12px; border-radius: 50%;
@@ -70,37 +71,38 @@ st.markdown("""
     .term-card h1 {
         color: #00FF88; font-size: 24px; font-weight: 700;
         margin-bottom: 4px; text-shadow: 0 0 15px rgba(0,255,136,0.4);
+        text-align: center;
     }
     .term-card .sub {
-        color: #00FF88; font-size: 13px; opacity: 0.6;
-        margin-bottom: 0;
+        color: #00FF88; font-size: 12px; opacity: 0.6;
+        margin-bottom: 0; text-align: center;
     }
-    .term-card .footer-line, .footer-line {
+    .term-card .footer-line {
         color: #00FF88; font-size: 12px; opacity: 0.5;
-        margin-top: 16px;
+        margin-top: 16px; text-align: center;
     }
-    .term-card .footer-line .cursor, .footer-line .cursor {
+    .term-card .footer-line .cursor {
         display: inline-block; width: 8px; height: 15px;
         background: #00FF88;
         animation: blink 1s step-end infinite;
         vertical-align: middle;
         margin-left: 4px;
     }
-    /* Password input styling inside the card */
-    .pwd-input input {
+    /* Password input inside the card */
+    .term-card .stTextInput input {
         background: #0A0D14 !important;
         border: 1px solid #00FF88 !important;
         border-radius: 6px !important;
         color: #00FF88 !important;
         font-family: 'JetBrains Mono', monospace !important;
         font-size: 20px !important;
-        padding: 14px !important;
+        padding: 12px !important;
         text-align: center !important;
         letter-spacing: 8px !important;
         caret-color: #00FF88 !important;
         box-shadow: 0 0 10px rgba(0,255,136,0.1) !important;
     }
-    .pwd-input input:focus {
+    .term-card .stTextInput input:focus {
         box-shadow: 0 0 25px rgba(0,255,136,0.4) !important;
         border-color: #00FF88 !important;
     }
@@ -283,49 +285,72 @@ def check_password():
     if st.session_state.authenticated:
         return True
 
-    # ── Matrix background ──
-    st.markdown("""
-    <div class="matrix-bg"><div class="grid"></div></div>
-    """, unsafe_allow_html=True)
+    # ── Matrix rain background (generated once per session) ──
+    if "matrix_rain" not in st.session_state:
+        cols_html = []
+        chars = []
+        for c in range(0xFF66, 0xFF9F):
+            chars.append(chr(c))
+        for c in range(0x30A0, 0x30FF):
+            chars.append(chr(c))
+        chars.extend("0123456789:-*+#$%&@")
+        n = len(chars)
+        for i in range(40):
+            col_chars = "".join(chars[(i * 7 + j * 13) % n] for j in range(30))
+            dur = round(7 + (i % 5) * 0.8, 1)
+            delay = round((i % 12) * 0.7, 1)
+            left = round((i / 40) * 98 + 0.5, 1)
+            cols_html.append(
+                f'<div class="rain-column" style="left:{left}%;'
+                f'animation-duration:{dur}s;animation-delay:{delay}s;">{col_chars}</div>'
+            )
+        st.session_state.matrix_rain = (
+            '<div class="matrix-rain">' + "".join(cols_html) + "</div>"
+        )
 
-    # ── Terminal login card (one self-contained block) ──
-    st.markdown("""
-    <div style="min-height:70vh;display:flex;align-items:center;justify-content:center;padding:20px;">
-        <div class="term-card" style="width:420px;">
-            <div class="dot-group">
-                <span class="r"></span><span class="y"></span><span class="g"></span>
-                <span class="title">prospect_finder.exe</span>
-            </div>
-            <h1>🕵️ PROSPECT FINDER</h1>
-            <div class="sub">$ SECURE TERMINAL v1.0 — AUTHORIZATION REQUIRED</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(st.session_state.matrix_rain, unsafe_allow_html=True)
 
-    # ── Password row directly below card ──
+    # ── Centered login card with password INSIDE ──
     _, col, _ = st.columns([1, 2, 1])
     with col:
-        st.markdown('<div class="pwd-input" style="margin-top:-40px;position:relative;z-index:2;">', unsafe_allow_html=True)
+        st.markdown("""
+        <div style="min-height:70vh;display:flex;align-items:center;justify-content:center;padding:20px;position:relative;z-index:1;">
+            <div class="term-card" style="width:100%;max-width:440px;">
+                <div class="dot-group">
+                    <span class="r"></span><span class="y"></span><span class="g"></span>
+                    <span class="title">prospect_finder.exe</span>
+                </div>
+                <h1>🕵️ PROSPECT FINDER</h1>
+                <div class="sub">$ SECURE TERMINAL v1.0 — AUTHORIZATION REQUIRED</div>
+                <div style="margin-top:20px;">
+                    <div style="color:#808080;font-size:11px;margin-bottom:6px;text-align:center;">$ enter password:</div>
+        """, unsafe_allow_html=True)
+
         password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="")
-        st.markdown("</div>", unsafe_allow_html=True)
+
         expected = st.secrets.get("password", os.environ.get("PROSPECT_PASSWORD", ""))
+        error_html = ""
         if password:
             if password == expected:
                 st.session_state.authenticated = True
                 st.rerun()
             else:
-                st.markdown("""
-                <div style="text-align:center;padding:8px;border:1px solid rgba(255,51,85,0.3);border-radius:6px;background:rgba(255,51,85,0.08);margin-top:8px;">
-                    <span style="color:#FF3355;font-size:13px;">✗ ACCESS DENIED — INCORRECT PASSWORD</span>
-                </div>
-                """, unsafe_allow_html=True)
+                error_html = (
+                    '<div style="text-align:center;padding:8px;'
+                    'border:1px solid rgba(255,51,85,0.3);border-radius:6px;'
+                    'background:rgba(255,51,85,0.08);margin-top:10px;">'
+                    '<span style="color:#FF3355;font-size:13px;">'
+                    '✗ ACCESS DENIED — INCORRECT PASSWORD</span></div>'
+                )
 
-    # ── Card footer ──
-    st.markdown("""
-    <div style="width:420px;margin:-4px auto 0;">
-        <div class="footer-line">$ access --grant <span class="cursor"></span></div>
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown(f"""
+                </div>
+                {error_html}
+                <div class="footer-line">$ access --grant <span class="cursor"></span></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     return False
 
 
