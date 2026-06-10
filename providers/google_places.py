@@ -1,5 +1,6 @@
 import requests
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 
@@ -35,23 +36,21 @@ def search_businesses(api_key: str, business_type: str, location: str, max_resul
     # First query: textSearch
     query = f"{business_type} in {location}"
     url = f"{PLACES_API_BASE}/textsearch/json"
-    params = {
-        "query": query,
-        "key": api_key,
-    }
 
-    # Add type filter if we have one
     type_key = business_type.lower().strip()
-    if type_key in TYPE_MAP:
-        params["type"] = "|".join(TYPE_MAP[type_key])
+    type_filter = "|".join(TYPE_MAP[type_key]) if type_key in TYPE_MAP else None
 
     page = 0
     while len(all_results) < max_results:
         page += 1
+        params = {"key": api_key}
         if next_page_token:
             params["pagetoken"] = next_page_token
-            # Google requires a short delay before using pagetoken
             time.sleep(2)
+        else:
+            params["query"] = query
+            if type_filter:
+                params["type"] = type_filter
 
         try:
             resp = requests.get(url, params=params, timeout=15)
@@ -61,6 +60,8 @@ def search_businesses(api_key: str, business_type: str, location: str, max_resul
             break
 
         if data.get("status") != "OK" and data.get("status") != "ZERO_RESULTS":
+            if next_page_token:
+                break
             error_msg = data.get("error_message", data.get("status", "Unknown error"))
             yield {"type": "error", "message": f"Google Places API: {error_msg}"}
             break
@@ -106,37 +107,30 @@ def search_businesses(api_key: str, business_type: str, location: str, max_resul
         "count": len(all_results),
     }
 
-    # Now get detailed info for each
+    # Now get detailed info for each — threaded for speed
     details_url = f"{PLACES_API_BASE}/details/json"
-    enriched = []
-    for i, biz in enumerate(all_results):
+
+    def fetch_details(place: dict) -> dict:
         try:
-            detail_params = {
-                "place_id": biz["place_id"],
+            resp = requests.get(details_url, params={
+                "place_id": place["place_id"],
                 "fields": "name,formatted_phone_number,website,opening_hours,editorial_summary",
                 "key": api_key,
-            }
-            resp = requests.get(details_url, params=detail_params, timeout=10)
-            detail_data = resp.json()
+            }, timeout=10)
+            data = resp.json()
+            if data.get("status") == "OK":
+                r = data.get("result", {})
+                place["phone"] = r.get("formatted_phone_number", "")
+                place["website"] = r.get("website", "")
         except Exception:
-            enriched.append(biz)
-            continue
+            pass
+        return place
 
-        if detail_data.get("status") == "OK":
-            result = detail_data.get("result", {})
-            biz["phone"] = result.get("formatted_phone_number", "")
-            biz["website"] = result.get("website", "")
-            biz["opening_hours"] = result.get("opening_hours", {})
-            biz["summary"] = result.get("editorial_summary", {}).get("overview", "")
-
-        enriched.append(biz)
-
-        if (i + 1) % 10 == 0:
-            yield {
-                "type": "details",
-                "message": f"Fetched details: {i + 1}/{len(all_results)}",
-                "count": len(enriched),
-            }
+    enriched = []
+    with ThreadPoolExecutor(max_workers=10) as exec:
+        futures = {exec.submit(fetch_details, biz): biz for biz in all_results}
+        for future in as_completed(futures):
+            enriched.append(future.result())
 
     yield {
         "type": "complete",

@@ -18,7 +18,10 @@ from providers.duckduckgo_provider import search_business, is_valid_email, guess
 from providers.social_scraper import scrape_facebook_page, scrape_instagram_bio
 from providers.website_scraper import scrape_website
 from providers.geoapify import search_geoapify
-from utils.dedup import load_existing_prospects, is_duplicate
+from providers.etsy_provider import search_etsy
+from providers.google_custom_search import search_custom
+from providers.serpapi_provider import search_serpapi, enrich_serpapi
+from utils.dedup import load_existing_prospects, is_duplicate, normalize_name, normalize_city
 
 _HEADERS = {
     "User-Agent": (
@@ -65,6 +68,8 @@ class ScanState:
     biz_type_idx: int = 0
     loc_idx: int = 0
     biz_idx: int = 0
+    retry_idx: int = 0
+    retry_indices: list = field(default_factory=list)
     all_results: list = field(default_factory=list)
     discovered: list = field(default_factory=list)
     existing: list = field(default_factory=list)
@@ -81,20 +86,29 @@ class ScanState:
     locations: list = field(default_factory=list)
     api_key: str = ""
     geoapify_key: str = ""
-    use_duckduckgo_only: bool = False
+    serpapi_key: str = ""
+    google_cx: str = ""
+    custom_query: str = ""
+    blacklist_domains: list = field(default_factory=list)
     max_leads: int = 0
+    keep_no_contact: bool = False
     message: str = ""
 
 
 def init_scan_state(api_key, business_types, locations, existing_csv_path,
-                    use_duckduckgo_only, max_leads, geoapify_key="") -> ScanState:
+                    max_leads, geoapify_key="", serpapi_key="", keep_no_contact=False,
+                    google_cx="", custom_query="", blacklist_domains=None) -> ScanState:
     state = ScanState(
         api_key=api_key,
         geoapify_key=geoapify_key,
+        serpapi_key=serpapi_key,
+        google_cx=google_cx,
+        custom_query=custom_query,
+        blacklist_domains=blacklist_domains or [],
         business_types=business_types,
         locations=locations,
-        use_duckduckgo_only=use_duckduckgo_only,
         max_leads=max_leads,
+        keep_no_contact=keep_no_contact,
     )
     if existing_csv_path:
         state.existing = load_existing_prospects(existing_csv_path)
@@ -117,6 +131,9 @@ def run_scan_step(state: ScanState, stop_flag: callable = None) -> dict:
 
     if state.step == "enrich":
         return _enrich_step(state, stop_flag)
+
+    if state.step == "enrich_retry":
+        return _enrich_retry_step(state, stop_flag)
 
     if state.step == "complete" or state.step == "stopped":
         return _complete(state)
@@ -164,28 +181,64 @@ def _discover_step(state: ScanState) -> dict:
     state_name = loc.get("state", "")
     country = loc.get("country", "US")
 
-    if state.geoapify_key:
-        discovered = []
-        for update in search_geoapify(state.geoapify_key, biz_type, f"{city} {state_name or country}"):
-            if update["type"] == "complete":
-                discovered = update["results"]
-            elif update["type"] == "error":
-                return update
-        msg = f"Geoapify found {len(discovered)} businesses in {city}"
-    elif state.use_duckduckgo_only:
-        discovered = discover_via_duckduckgo(
-            biz_type, city, state_name, country,
-            max_leads=state.max_leads or 10,
+    geo_results, google_results, ddg_results, etsy_results, custom_results, serpapi_results = [], [], [], [], [], []
+
+    if state.serpapi_key:
+        serpapi_results = search_serpapi(
+            state.serpapi_key, biz_type, city, state_name, country,
+            max_results=state.max_leads or 10,
         )
-        msg = f"DuckDuckGo found {len(discovered)} potential businesses in {city}"
-    else:
-        discovered = []
-        for update in search_businesses(state.api_key, biz_type, f"{city} {state_name or country}"):
+
+    if state.geoapify_key:
+        geo_loc = f"{city} {state_name}" if state_name else city
+        for update in search_geoapify(state.geoapify_key, biz_type, geo_loc):
             if update["type"] == "complete":
-                discovered = update["results"]
+                geo_results = update["results"]
             elif update["type"] == "error":
                 return update
-        msg = f"Google found {len(discovered)} businesses in {city}"
+
+    if state.api_key:
+        loc_str = f"{city}, {state_name}" if state_name else city
+        for update in search_businesses(state.api_key, biz_type, loc_str):
+            if update["type"] == "complete":
+                google_results = update["results"]
+            elif update["type"] == "error":
+                return update
+            elif update["type"] == "progress" or update["type"] == "details":
+                pass
+
+    ddg_results = discover_via_duckduckgo(
+        biz_type, city, state_name, country,
+        max_leads=state.max_leads or 10,
+    )
+
+    etsy_results = search_etsy(biz_type, max_results=state.max_leads or 10)
+
+    if state.custom_query:
+        custom_results = search_custom(state.api_key, state.google_cx, state.custom_query)
+
+    discovered = _merge_results(geo_results, google_results, ddg_results, etsy_results, custom_results, serpapi_results)
+
+    # Apply blacklist
+    blacklist = state.blacklist_domains or []
+    if blacklist:
+        filtered = []
+        for biz in discovered:
+            website = (biz.get("website") or "").lower()
+            name = (biz.get("name") or "").lower()
+            if not any(d in website or d in name for d in blacklist):
+                filtered.append(biz)
+        discovered = filtered
+
+    sources = []
+    if geo_results: sources.append("Geoapify")
+    if google_results: sources.append("Google")
+    if ddg_results: sources.append("DuckDuckGo")
+    if etsy_results: sources.append("Etsy")
+    if custom_results: sources.append("Custom")
+    if serpapi_results: sources.append("SerpAPI")
+    src_label = "+".join(sources) if sources else "search"
+    msg = f"{src_label} found {len(discovered)} businesses in {city}"
 
     if not discovered:
         state.loc_idx += 1
@@ -196,6 +249,28 @@ def _discover_step(state: ScanState) -> dict:
     state.step = "enrich"
 
     return {"type": "status", "message": msg}
+
+
+def _merge_results(*lists: list) -> list:
+    """Merge result lists from multiple providers, dedup by name + city, keep the richer entry."""
+    seen = {}
+    for biz_list in lists:
+        for biz in biz_list:
+            name = normalize_name(biz.get("name", ""))
+            city = normalize_city(biz.get("address", "").split(",")[0] if biz.get("address") else "")
+            key = (name, city)
+            existing = seen.get(key)
+            if existing is None:
+                seen[key] = dict(biz)
+            else:
+                for field in ("phone", "website", "emails"):
+                    existing_val = existing.get(field)
+                    new_val = biz.get(field)
+                    if (not existing_val or existing_val == "") and new_val:
+                        existing[field] = new_val
+                if not existing.get("emails"):
+                    existing["emails"] = biz.get("emails", [])
+    return list(seen.values())
 
 
 def _enrich_step(state: ScanState, stop_flag: callable = None) -> dict:
@@ -216,16 +291,38 @@ def _enrich_step(state: ScanState, stop_flag: callable = None) -> dict:
             "with_linkedin": state.total_linkedin,
             "hot": state.total_hot,
         }
+        if state.all_results:
+            state.retry_indices = [
+                i for i, r in enumerate(state.all_results)
+                if not r.get("emails") and not r.get("phone") and not r.get("contact_person")
+            ]
+            if state.retry_indices:
+                state.step = "enrich_retry"
+                state.retry_idx = 0
+                state.biz_idx = 0
+                return {"type": "status", "message": f"Retry pass: {len(state.retry_indices)} businesses missing contact info"}
         state.loc_idx += 1
         state.step = "discover"
         return _next_phase(state)
 
     biz = discovered[state.biz_idx]
     enriched, reason = _enrich_one(biz, biz_type, loc["city"], loc.get("state", ""),
-                                   loc.get("country", "US"), state.existing, stop_flag)
+                                   loc.get("country", "US"), state.existing,
+                                   state.serpapi_key, stop_flag)
     state.biz_idx += 1
 
     if reason == "no_contact":
+        if state.keep_no_contact:
+            enriched["lead_priority"] = "No contact"
+            enriched["enrichment_notes"] = "No email, phone, or website found"
+            state.total_new += 1
+            state.total_no_website += 1
+            return {
+                "type": "enrichment_progress",
+                "message": f"Kept {state.biz_idx}/{len(discovered)}: {biz.get('name', '')[:40]} (no contact)",
+                "current": state.biz_idx, "total": len(discovered),
+                "result": enriched,
+            }
         state.total_skipped_contact += 1
         return {
             "type": "enrichment_progress",
@@ -267,7 +364,77 @@ def _enrich_step(state: ScanState, stop_flag: callable = None) -> dict:
     }
 
 
-def _enrich_one(biz, biz_type, city, state_name, country, existing, stop_flag=None):
+def _enrich_retry_step(state: ScanState, stop_flag: callable = None) -> dict:
+    if stop_flag and stop_flag():
+        _scan_stop_event.set()
+        state.step = "stopped"
+        return _complete(state)
+
+    indices = state.retry_indices
+    if state.retry_idx >= len(indices):
+        state.loc_idx += 1
+        state.step = "discover"
+        return _next_phase(state)
+
+    idx = indices[state.retry_idx]
+    result = state.all_results[idx]
+    state.retry_idx += 1
+
+    result["enrichment_notes"] = (result["enrichment_notes"] or "") + "; retry pass"
+    retry_name = result.get("name", "")
+    retry_city = result.get("city", "")
+
+    # Aggressive DDG search for emails
+    retry_q = f'"{retry_name}" {retry_city} email OR "info@" OR contact'
+    retry_ddg = search_business(retry_q, retry_city, result.get("state", ""), result.get("country", "US"))
+    for e in retry_ddg.get("emails", []):
+        if e not in result["emails"]:
+            result["emails"].append(e)
+            result["email_source"] = "DDG retry"
+
+    # Find decision-maker LinkedIn (person profiles only)
+    if not result.get("linkedin_person"):
+        person_q = f'"owner" OR "founder" "{retry_name}" linkedin'
+        person_ddg = search_business(person_q, retry_city, result.get("state", ""), result.get("country", "US"))
+        li = person_ddg.get("linkedin", "")
+        if li and "/in/" in li:
+            result["linkedin_person"] = li
+
+    # Re-scrape website for more emails/people
+    if result.get("website"):
+        ws_data = scrape_website(result["website"], timeout=14)
+        for e in ws_data.get("emails", []):
+            if e not in result["emails"]:
+                result["emails"].append(e)
+                result["email_source"] = "Website retry"
+        if not result.get("phone") and ws_data.get("phones"):
+            result["phone"] = ws_data["phones"][0]
+        if not result.get("contact_person") and ws_data.get("people"):
+            result["contact_person"] = ws_data["people"][0].get("name", "")
+            result["contact_title"] = ws_data["people"][0].get("title", "")
+
+    if result["emails"]:
+        state.total_email += 1
+        if result["lead_priority"] in ("Cold", "No contact"):
+            result["lead_priority"] = "Hot"
+            state.total_hot += 1
+            result["enrichment_notes"] = (result["enrichment_notes"] or "") + "; email found on retry"
+
+    msg = f"Retry {state.retry_idx}/{len(indices)}: {retry_name[:40]}"
+    if result["emails"]:
+        msg += " ✅"
+    else:
+        msg += " still missing contact"
+
+    return {
+        "type": "enrichment_progress",
+        "message": msg,
+        "current": state.retry_idx, "total": len(indices),
+        "result": result,
+    }
+
+
+def _enrich_one(biz, biz_type, city, state_name, country, existing, serpapi_key="", stop_flag=None):
     if _scan_stop_event.is_set():
         return None, "stopped"
 
@@ -288,7 +455,9 @@ def _enrich_one(biz, biz_type, city, state_name, country, existing, stop_flag=No
         "business_status": biz.get("business_status", ""),
         "types": ", ".join(biz.get("types", [])) if biz.get("types") else "",
         "emails": biz_emails[:],
-        "linkedin": "", "instagram": "", "facebook": "",
+        "linkedin": "", "linkedin_company": "", "linkedin_person": "",
+        "instagram": "", "facebook": "",
+        "contact_person": "", "contact_title": "",
         "has_website": bool(biz_website),
         "lead_priority": "Cold",
         "email_source": "", "enrichment_notes": "",
@@ -326,14 +495,30 @@ def _enrich_one(biz, biz_type, city, state_name, country, existing, stop_flag=No
                 enriched["emails"].append(e)
                 enriched["email_source"] = "Instagram"
 
+    ws_data = {}
     if enriched["website"] and time.time() < item_deadline:
         ws_data = scrape_website(enriched["website"], timeout=14)
-        for e in ws_data["emails"]:
+        for e in ws_data.get("emails", []):
             if e not in enriched["emails"]:
                 enriched["emails"].append(e)
                 enriched["email_source"] = "Website"
-        if not enriched["phone"] and ws_data["phones"]:
+        if not enriched["phone"] and ws_data.get("phones"):
             enriched["phone"] = ws_data["phones"][0]
+
+    if not enriched["emails"] and serpapi_key:
+        serpapi_data = enrich_serpapi(serpapi_key, biz_name, city, state_name, country, website=biz_website)
+        for e in serpapi_data["emails"]:
+            if e not in enriched["emails"]:
+                enriched["emails"].append(e)
+                enriched["email_source"] = "SerpAPI"
+        if not enriched["phone"] and serpapi_data["phones"]:
+            enriched["phone"] = serpapi_data["phones"][0]
+        if not enriched["linkedin"] and serpapi_data["linkedin"]:
+            enriched["linkedin"] = serpapi_data["linkedin"]
+        if not enriched["instagram"] and serpapi_data["instagram"]:
+            enriched["instagram"] = serpapi_data["instagram"]
+        if not enriched["facebook"] and serpapi_data["facebook"]:
+            enriched["facebook"] = serpapi_data["facebook"]
 
     if not enriched["emails"] and enriched["website"]:
         for guess in guess_emails_from_domain(enriched["website"]):
@@ -341,6 +526,18 @@ def _enrich_one(biz, biz_type, city, state_name, country, existing, stop_flag=No
                 enriched["emails"].append(guess)
                 enriched["email_source"] = "Domain guess"
                 break
+
+    if not enriched["contact_person"] and ws_data.get("people"):
+        enriched["contact_person"] = ws_data["people"][0].get("name", "")
+        enriched["contact_title"] = ws_data["people"][0].get("title", "")
+
+    if enriched["linkedin"]:
+        enriched["linkedin_company"] = enriched["linkedin"]
+    if not enriched["linkedin_person"] and enriched.get("name"):
+        person_ddg = search_business(f"owner founder {enriched['name']}", city, state_name, country)
+        li = person_ddg.get("linkedin", "")
+        if li and "/in/" in li:
+            enriched["linkedin_person"] = li
 
     has_any_contact = has_any_contact or bool(enriched["emails"])
     if not has_any_contact:

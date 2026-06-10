@@ -1,6 +1,5 @@
 import requests
-import time
-from typing import Generator
+from typing import Generator, Optional
 
 GEOCODING_URL = "https://api.geoapify.com/v1/geocode/search"
 PLACES_URL = "https://api.geoapify.com/v2/places"
@@ -16,15 +15,77 @@ CATEGORY_MAP = {
     "spa": "commercial.beauty,leisure.spa",
     "beauty salon": "commercial.beauty",
     "hair salon": "commercial.beauty.hairdresser",
+    "gym": "leisure.fitness",
+    "restaurant": "catering.restaurant",
+    "cafe": "catering.cafe",
+    "bakery": "catering.bakery",
+    "hotel": "accommodation.hotel",
+    "tattoo": "commercial.beauty.tattoo_parlor",
+    "barber": "commercial.beauty.barber",
+    "nail salon": "commercial.beauty.nail_salon",
+    "physio": "healthcare.physiotherapist",
+    "chiropractor": "healthcare.chiropractor",
+    "optician": "healthcare.optometrist",
+    "pharmacy": "healthcare.pharmacy",
+    "vet": "healthcare.veterinary",
+    "auto repair": "service.vehicle.workshop",
+    "plumber": "service.maintenance.plumber",
+    "electrician": "service.maintenance.electrician",
+    "cleaner": "service.maintenance.cleaning",
+    "laundry": "service.maintenance.laundry",
+    "dry cleaner": "service.maintenance.dry_cleaning",
+    "accountant": "service.financial.accountant",
+    "lawyer": "service.legal.lawyer",
+    "real estate": "service.business_services.real_estate",
+    "travel agent": "leisure.travel.travel_agency",
 }
 
 
-def _geoapify_categories(business_type: str) -> str:
+def _geoapify_categories(business_type: str) -> Optional[str]:
     bt = business_type.lower().strip()
     for key, val in CATEGORY_MAP.items():
         if key in bt:
             return val
-    return f"commercial.{bt.replace(' ', '_')}"
+    return None
+
+
+def _fetch_places(api_key: str, categories: str, lat: float, lon: float) -> list:
+    try:
+        resp = requests.get(PLACES_URL, params={
+            "apiKey": api_key,
+            "categories": categories,
+            "filter": f"circle:{lon},{lat},10000",
+            "limit": 20,
+            "lang": "en",
+        }, timeout=15)
+        if resp.status_code != 200:
+            return []
+        features = resp.json().get("features", [])
+        results = []
+        for f in features:
+            p = f.get("properties", {})
+            name = p.get("name", "").strip()
+            if not name:
+                continue
+            contact = p.get("contact", {}) or {}
+            cats = p.get("categories", [])
+            if "private_household" in str(cats):
+                continue
+            results.append({
+                "name": name,
+                "phone": contact.get("phone", "") or "",
+                "website": contact.get("website", "") or "",
+                "emails": [contact.get("email", "")] if contact.get("email") else [],
+                "address": p.get("formatted", "") or "",
+                "rating": p.get("rating"),
+                "user_ratings_total": p.get("reviews", 0),
+                "types": cats,
+                "business_status": "",
+                "price_level": None,
+            })
+        return results
+    except Exception:
+        return []
 
 
 def search_geoapify(api_key: str, business_type: str, location: str) -> Generator[dict, None, None]:
@@ -34,6 +95,9 @@ def search_geoapify(api_key: str, business_type: str, location: str) -> Generato
         return
 
     categories = _geoapify_categories(business_type)
+    if not categories:
+        yield {"type": "complete", "results": []}
+        return
 
     geo_resp = requests.get(
         GEOCODING_URL,
@@ -53,56 +117,5 @@ def search_geoapify(api_key: str, business_type: str, location: str) -> Generato
     props = features[0]["properties"]
     lat, lon = props["lat"], props["lon"]
 
-    params = {
-        "apiKey": api_key,
-        "categories": categories,
-        "filter": f"circle:{lon},{lat},10000",
-        "limit": 20,
-        "lang": "en",
-    }
-
-    try:
-        resp = requests.get(PLACES_URL, params=params, timeout=15)
-        if resp.status_code != 200:
-            yield {"type": "error", "message": f"Geoapify Places error: {resp.status_code}"}
-            return
-
-        data = resp.json()
-        features = data.get("features", [])
-
-        results = []
-        for f in features:
-            p = f.get("properties", {})
-            name = p.get("name", "").strip()
-            if not name:
-                continue
-
-            contact = p.get("contact", {}) or {}
-            address = p.get("formatted", "")
-            phone = contact.get("phone", "")
-            website = contact.get("website", "")
-            email = contact.get("email", "")
-            rating = p.get("rating")
-            reviews = p.get("reviews", 0)
-            cats = p.get("categories", [])
-
-            if "private_household" in str(cats):
-                continue
-
-            results.append({
-                "name": name,
-                "phone": phone or "",
-                "website": website or "",
-                "emails": [email] if email else [],
-                "address": address or "",
-                "rating": rating,
-                "user_ratings_total": reviews,
-                "types": cats,
-                "business_status": "",
-                "price_level": None,
-            })
-
-        yield {"type": "complete", "results": results}
-
-    except Exception as e:
-        yield {"type": "error", "message": f"Geoapify request failed: {e}"}
+    results = _fetch_places(api_key, categories, lat, lon)
+    yield {"type": "complete", "results": results}

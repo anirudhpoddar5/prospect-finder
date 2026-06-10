@@ -82,6 +82,12 @@ def get_api_key():
 def get_geoapify_key():
     return st.secrets.get("geoapify_key", os.environ.get("GEOAPIFY_KEY", ""))
 
+def get_google_cx():
+    return st.secrets.get("google_cx", os.environ.get("GOOGLE_CX", ""))
+
+def get_serpapi_key():
+    return st.secrets.get("serpapi_key", os.environ.get("SERPAPI_KEY", ""))
+
 
 # ─── DEMO DATA ─────────────────────────────────────────────────────────────────
 def load_demo_data():
@@ -189,8 +195,10 @@ st.caption("Discover businesses worldwide with enriched contact data. Finds emai
 # Check API keys
 api_key = get_api_key()
 geoapify_key = get_geoapify_key()
+serpapi_key = get_serpapi_key()
 has_api_key = bool(api_key)
 has_geoapify = bool(geoapify_key)
+has_serpapi = bool(serpapi_key)
 if not has_api_key and not has_geoapify:
     st.warning("⚠️ **No API keys found.** DuckDuckGo-only mode is limited. Set Google Places or Geoapify key in secrets for better results. Use **Load Demo Data** to test the UI.")
 
@@ -198,23 +206,21 @@ with st.sidebar:
     st.header("⚙️ Settings")
 
     st.subheader("Business Types")
-    default_types = "med spa, cosmetic dentist"
     type_input = st.text_area(
         "One per line or comma-separated",
-        value=default_types,
         height=80,
         label_visibility="collapsed",
+        placeholder="e.g. dentist, home decor store, block print"
     )
     business_types = [t.strip() for t in type_input.replace("\n", ",").split(",") if t.strip()]
 
     st.subheader("Locations")
-    st.caption("Format: City, State/Country (e.g. Frisco, TX or London, UK)")
-    default_locs = "Frisco, TX\nScottsdale, AZ\nChandler, AZ\nAlpharetta, GA\nFranklin, TN"
+    st.caption("Format: City, State/Country (e.g. London, UK or Mumbai, IN)")
     loc_input = st.text_area(
         "One per line",
-        value=default_locs,
-        height=140,
+        height=130,
         label_visibility="collapsed",
+        placeholder="London, UK\nNew York, NY, US\nMumbai, MH, IN"
     )
     locations = []
     for line in loc_input.strip().split("\n"):
@@ -231,36 +237,27 @@ with st.sidebar:
         sg_cities = {"singapore"}
         in_cities = {"mumbai", "delhi", "bangalore", "pune", "hyderabad", "chennai", "kolkata", "ahmedabad"}
 
-        if rest.upper() in us_states or len(rest) == 2:
+        if rest.upper() in us_states:
             country = "US"
             state = rest.upper()
-        elif city.lower() in uk_cities:
+        elif rest.upper() in ("UK", "GB", "UNITED KINGDOM") or city.lower() in uk_cities:
             country = "UK"
-            state = rest or "UK"
-        elif city.lower() in au_cities:
+            state = rest.upper() if rest.upper() not in ("GB", "UNITED KINGDOM") else "UK"
+        elif rest.upper() in ("AU", "AUS", "AUSTRALIA") or city.lower() in au_cities:
             country = "AU"
-            state = rest or "AU"
-        elif city.lower() in sg_cities:
+            state = rest.upper() if rest.upper() not in ("AUS", "AUSTRALIA") else "AU"
+        elif rest.upper() in ("SG", "SINGAPORE") or city.lower() in sg_cities:
             country = "SG"
-            state = rest or "SG"
-        elif city.lower() in in_cities:
+            state = rest.upper() if rest.upper() != "SINGAPORE" else "SG"
+        elif rest.upper() in ("IN", "INDIA") or city.lower() in in_cities:
             country = "IN"
-            state = rest or "IN"
-        elif rest.upper() in ("UK", "GB", "UNITED KINGDOM"):
-            country = "UK"
-            state = "UK"
-        elif rest.upper() in ("AU", "AUS", "AUSTRALIA"):
-            country = "AU"
-            state = "AU"
-        elif rest.upper() in ("SG", "SINGAPORE"):
-            country = "SG"
-            state = "SG"
-        elif rest.upper() in ("IN", "INDIA"):
-            country = "IN"
-            state = "IN"
+            state = rest.upper() if rest.upper() != "INDIA" else "IN"
+        elif rest:
+            country = rest.upper()
+            state = rest.upper()
         else:
             country = "US"
-            state = rest.upper() if rest else ""
+            state = ""
 
         locations.append({"city": city, "state": state, "country": country})
 
@@ -290,6 +287,65 @@ with st.sidebar:
         st.caption("✅ Geoapify key detected — fast discovery enabled")
     st.session_state.geoapify_key = geoapify_key
 
+    if has_serpapi:
+        st.caption("✅ SerpAPI key detected — extra discovery & enrichment")
+    st.session_state.serpapi_key = serpapi_key
+
+    st.divider()
+
+    google_cx = get_google_cx()
+    has_cx = bool(google_cx)
+    st.subheader("🔍 Custom Web Search")
+    custom_query = st.text_area(
+        "Google Custom Search query (100/day free)",
+        height=60,
+        label_visibility="collapsed",
+        placeholder='e.g. site:etsy.com "block print" bedcovers',
+        help="Uses Google Custom Search API. CX key must be set in secrets."
+    )
+    if not has_cx:
+        st.caption("⚠️ Set `google_cx` in secrets to enable")
+    elif custom_query.strip():
+        st.caption(f"Will search: {custom_query[:60]}")
+    st.session_state.custom_query = custom_query.strip() if has_cx else ""
+    st.session_state.google_cx = google_cx
+
+    with st.expander("💡 Search ideas", expanded=False):
+        st.markdown("""
+**For block printing:**  
+`"home decor" "block print" UK`  
+`"textile shop" "block print" Instagram`  
+`site:etsy.com "block print" bedcovers`  
+`"boutique" "hand block print" Clothing`  
+
+**For SaaS prospects:**  
+`"Shopify store" email contact`  
+`"ecommerce" founder LinkedIn UK`  
+`"digital agency" "no CRM"`  
+`"WordPress site" "email marketing"`  
+
+**For content writing / blog outreach:**  
+`"home decor" blog "write for us"`  
+`"textile" magazine "guest post"`  
+`"interior design" blog "contributor"`  
+
+**For any business + email:**  
+`"home decor store" London email`  
+`site:facebook.com "textile shop" UK`  
+""")
+
+    st.divider()
+
+    st.subheader("⛔ Blacklist Domains")
+    blacklist_input = st.text_input(
+        "Exclude these domains (comma-separated)",
+        placeholder="competitor.com, etsy.com",
+        label_visibility="collapsed",
+    )
+    st.session_state.blacklist_domains = [d.strip().lower() for d in blacklist_input.split(",") if d.strip()]
+
+    st.divider()
+
     st.subheader("Max Leads")
     max_leads = st.number_input(
         "Max prospects per location (0 = unlimited)",
@@ -300,6 +356,14 @@ with st.sidebar:
     if max_leads:
         st.caption(f"⏱ Will process up to **{max_leads}** prospects per location")
 
+    keep_no_contact = st.checkbox(
+        "Keep businesses with no contact info",
+        value=False,
+        help="When checked, businesses without email/phone/website are kept in results.",
+    )
+    if keep_no_contact:
+        st.caption("📋 Will include businesses missing email, phone, and website")
+
     st.divider()
 
     st.session_state.max_leads = max_leads
@@ -307,35 +371,34 @@ with st.sidebar:
     col1, col2 = st.columns(2)
     with col1:
         enabled = not st.session_state.scan_running
-        btn_label = "🔍 Start Scan"
-        if has_geoapify:
-            btn_label = "🔍 Scan (Geoapify)"
-        elif has_api_key:
-            btn_label = "🔍 Scan (Google)"
-        else:
-            btn_label = "🔍 Scan (DuckDuckGo)"
+        sources = []
+        if has_api_key: sources.append("Google")
+        if has_geoapify: sources.append("Geoapify")
+        if has_serpapi: sources.append("SerpAPI")
+        sources.append("DuckDuckGo")
+        btn_label = f"🔍 Scan ({'+'.join(sources)})"
         start_btn = st.button(
             btn_label,
             type="primary",
-            use_container_width=True,
+            width="stretch",
             disabled=not enabled,
         )
     with col2:
         st.button(
             "⏹ Stop",
             on_click=stop_scan,
-            use_container_width=True,
+            width="stretch",
             disabled=not st.session_state.scan_running,
         )
 
     demo_btn = st.button(
         "🎲 Load Demo Data",
-        use_container_width=True,
+        width="stretch",
         disabled=st.session_state.scan_running,
     )
 
     if st.session_state.scan_running:
-        st.button("🔄 Reset", on_click=reset_scan, use_container_width=True)
+        st.button("🔄 Reset", on_click=reset_scan, width="stretch")
 
 # ─── MAIN PANEL ────────────────────────────────────────────────────────────────
 
@@ -404,9 +467,13 @@ if st.session_state.scan_running:
             business_types=business_types,
             locations=locations,
             existing_csv_path=tmp_csv,
-            use_duckduckgo_only=not has_api_key and not has_geoapify,
             max_leads=max_leads or 0,
             geoapify_key=geoapify_key,
+            serpapi_key=serpapi_key,
+            keep_no_contact=keep_no_contact,
+            google_cx=st.session_state.get("google_cx", ""),
+            custom_query=st.session_state.get("custom_query", ""),
+            blacklist_domains=st.session_state.get("blacklist_domains", []),
         )
 
     state = st.session_state.scan_state
@@ -457,7 +524,7 @@ if st.session_state.scan_running:
                 })
             live_table.dataframe(
                 rows,
-                use_container_width=True,
+                width="stretch",
                 height=min(420, 28 * len(rows) + 28),
                 column_config={
                     "🔥": st.column_config.TextColumn(width="small"),
@@ -550,6 +617,7 @@ if st.session_state.scan_results is not None:
                 df_rows.append({
                     "🔥 Priority": "🔥" if r["lead_priority"] == "Hot" else "👍",
                     "Business Name": r["name"],
+                    "Contact": f"{r.get('contact_person', '')}" + (f" ({r.get('contact_title', '')})" if r.get('contact_title') else ""),
                     "Category": r["category"].title(),
                     "City": r["city"],
                     "State": r["state"],
@@ -570,7 +638,7 @@ if st.session_state.scan_results is not None:
 
             st.dataframe(
                 df,
-                use_container_width=True,
+                width="stretch",
                 height=min(400, 40 * len(df_rows) + 40),
                 column_config={
                     "🔥 Priority": st.column_config.TextColumn(width="small"),
@@ -596,7 +664,7 @@ if st.session_state.scan_results is not None:
                     data=csv_data,
                     file_name=f"prospects_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
-                    use_container_width=True,
+                    width="stretch",
                 )
 
             import_rows = []
@@ -609,13 +677,13 @@ if st.session_state.scan_results is not None:
                     "STATE": r["state"],
                     "TIER": 1,
                     "CLINIC NAME": r["name"],
-                    "CONTACT PERSON": "",
-                    "TITLE": "",
+                    "CONTACT PERSON": r.get("contact_person", ""),
+                    "TITLE": r.get("contact_title", ""),
                     "EMAIL": emails,
                     "PHONE": r["phone"],
                     "WEBSITE": r["website"],
-                    "LINKEDIN (Person)": "",
-                    "LINKEDIN (Company)": r["linkedin"] if r["linkedin"] else "",
+                    "LINKEDIN (Person)": r.get("linkedin_person", ""),
+                    "LINKEDIN (Company)": r.get("linkedin_company", "") or r.get("linkedin", ""),
                     "INSTAGRAM": r["instagram"],
                     "FACEBOOK": r["facebook"],
                     "LEAD PRIORITY": r["lead_priority"],
@@ -631,7 +699,7 @@ if st.session_state.scan_results is not None:
                     data=import_csv,
                     file_name=f"prospects_import_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
-                    use_container_width=True,
+                    width="stretch",
                 )
 
             # Hot leads quick view
@@ -639,7 +707,7 @@ if st.session_state.scan_results is not None:
             if not hot_df.empty:
                 st.divider()
                 st.subheader("🔥 Hot Leads")
-                st.dataframe(hot_df, use_container_width=True, height=min(300, 40 * len(hot_df) + 40))
+                st.dataframe(hot_df, width="stretch", height=min(300, 40 * len(hot_df) + 40))
 
 elif not st.session_state.scan_running:
     with results_container:
