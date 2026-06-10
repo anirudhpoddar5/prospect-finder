@@ -20,66 +20,87 @@ st.markdown("""
 
     * { font-family: 'JetBrains Mono', monospace; }
 
-    /* Login page background */
-    .login-page {
-        background: #0A0D14;
-        min-height: 80vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-        background-image:
-            linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
-        background-size: 40px 40px;
-    }
-    .login-terminal {
-        background: #131720;
-        border: 1px solid #00FF88;
-        border-radius: 8px;
-        padding: 40px;
-        width: 420px;
-        box-shadow: 0 0 30px rgba(0,255,136,0.2), inset 0 0 30px rgba(0,255,136,0.05);
-    }
-    .login-terminal .title-bar {
-        color: #00FF88; font-size: 14px; margin-bottom: 24px;
-        display: flex; align-items: center; gap: 10px;
-    }
-    .login-terminal .title-bar .dot {
-        width: 10px; height: 10px; border-radius: 50%; display: inline-block;
-    }
-    .login-terminal .title-bar .dot-red { background: #FF3355; }
-    .login-terminal .title-bar .dot-yellow { background: #FFD700; }
-    .login-terminal .title-bar .dot-green { background: #00FF88; }
-    .login-terminal h1 {
-        color: #00FF88; font-size: 22px; font-weight: 700;
-        margin-bottom: 8px; text-shadow: 0 0 10px rgba(0,255,136,0.5);
-    }
-    .login-terminal .prompt {
-        color: #00FF88; font-size: 13px; margin: 16px 0;
-        opacity: 0.7;
-    }
-    .login-terminal .cursor {
-        display: inline-block; width: 8px; height: 16px;
-        background: #00FF88; margin-left: 4px;
-        animation: blink 1s step-end infinite;
-        vertical-align: middle;
+    /* ─── MATRIX RAIN ────────────────────────────────────────────────────── */
+    @keyframes matrixDrop {
+        0% { transform: translateY(-100%); opacity: 1; }
+        100% { transform: translateY(100vh); opacity: 0; }
     }
     @keyframes blink {
         50% { opacity: 0; }
     }
-    .login-terminal .stTextInput input {
+    /* Background grid overlay */
+    .matrix-bg {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: -1; pointer-events: none;
+    }
+    .matrix-bg .grid {
+        width: 100%; height: 100%;
+        background-image:
+            linear-gradient(rgba(0,255,136,0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,255,136,0.04) 1px, transparent 1px);
+        background-size: 50px 50px;
+    }
+    /* Terminal card (for login & empty state) */
+    .term-card {
+        background: #131720;
+        border: 1px solid #00FF88;
+        border-radius: 10px;
+        padding: 36px 40px 20px;
+        box-shadow: 0 0 40px rgba(0,255,136,0.15), 0 0 80px rgba(0,255,136,0.05);
+        animation: matrixFlicker 4s infinite;
+    }
+    @keyframes matrixFlicker {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.85; }
+    }
+    .term-card .dot-group {
+        display: flex; align-items: center; gap: 8px; margin-bottom: 24px;
+    }
+    .term-card .dot-group span {
+        width: 12px; height: 12px; border-radius: 50%;
+    }
+    .term-card .dot-group .r { background: #FF3355; }
+    .term-card .dot-group .y { background: #FFD700; }
+    .term-card .dot-group .g { background: #00FF88; }
+    .term-card .dot-group .title {
+        color: #808080; font-size: 11px; margin-left: 4px; flex: 1;
+    }
+    .term-card h1 {
+        color: #00FF88; font-size: 24px; font-weight: 700;
+        margin-bottom: 4px; text-shadow: 0 0 15px rgba(0,255,136,0.4);
+    }
+    .term-card .sub {
+        color: #00FF88; font-size: 13px; opacity: 0.6;
+        margin-bottom: 0;
+    }
+    .term-card .footer-line, .footer-line {
+        color: #00FF88; font-size: 12px; opacity: 0.5;
+        margin-top: 16px;
+    }
+    .term-card .footer-line .cursor, .footer-line .cursor {
+        display: inline-block; width: 8px; height: 15px;
+        background: #00FF88;
+        animation: blink 1s step-end infinite;
+        vertical-align: middle;
+        margin-left: 4px;
+    }
+    /* Password input styling inside the card */
+    .pwd-input input {
         background: #0A0D14 !important;
         border: 1px solid #00FF88 !important;
+        border-radius: 6px !important;
         color: #00FF88 !important;
         font-family: 'JetBrains Mono', monospace !important;
-        font-size: 16px !important;
-        padding: 12px !important;
+        font-size: 20px !important;
+        padding: 14px !important;
         text-align: center !important;
-        letter-spacing: 4px !important;
+        letter-spacing: 8px !important;
+        caret-color: #00FF88 !important;
+        box-shadow: 0 0 10px rgba(0,255,136,0.1) !important;
     }
-    .login-terminal .stTextInput input:focus {
-        box-shadow: 0 0 15px rgba(0,255,136,0.3) !important;
+    .pwd-input input:focus {
+        box-shadow: 0 0 25px rgba(0,255,136,0.4) !important;
+        border-color: #00FF88 !important;
     }
 
     /* Glass card */
@@ -260,37 +281,49 @@ def check_password():
     if st.session_state.authenticated:
         return True
 
-    # Full-page login with terminal card
+    # ── Matrix background ──
     st.markdown("""
-    <div class="login-page">
-        <div class="login-terminal">
-            <div class="title-bar">
-                <span class="dot dot-red"></span>
-                <span class="dot dot-yellow"></span>
-                <span class="dot dot-green"></span>
-                <span style="margin-left:8px;font-size:11px;opacity:0.5;">prospect_finder.exe</span>
+    <div class="matrix-bg"><div class="grid"></div></div>
+    """, unsafe_allow_html=True)
+
+    # ── Terminal login card (one self-contained block) ──
+    st.markdown("""
+    <div style="min-height:70vh;display:flex;align-items:center;justify-content:center;padding:20px;">
+        <div class="term-card" style="width:420px;">
+            <div class="dot-group">
+                <span class="r"></span><span class="y"></span><span class="g"></span>
+                <span class="title">prospect_finder.exe</span>
             </div>
             <h1>🕵️ PROSPECT FINDER</h1>
-            <div class="prompt">SECURE TERMINAL v1.0</div>
-            <div class="prompt">$ access --grant</div>
+            <div class="sub">$ SECURE TERMINAL v1.0 — AUTHORIZATION REQUIRED</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Centered password input below the terminal card
-    _, col, _ = st.columns([1, 1.5, 1])
+    # ── Password row directly below card ──
+    _, col, _ = st.columns([1, 2, 1])
     with col:
-        with st.container():
-            st.markdown('<div style="margin-top:-60px;position:relative;z-index:2;">', unsafe_allow_html=True)
-            password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="")
-            st.markdown("</div>", unsafe_allow_html=True)
-            expected = st.secrets.get("password", os.environ.get("PROSPECT_PASSWORD", ""))
-            if password:
-                if password == expected:
-                    st.session_state.authenticated = True
-                    st.rerun()
-                else:
-                    st.error("$ ACCESS DENIED — INCORRECT PASSWORD")
+        st.markdown('<div class="pwd-input" style="margin-top:-40px;position:relative;z-index:2;">', unsafe_allow_html=True)
+        password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="")
+        st.markdown("</div>", unsafe_allow_html=True)
+        expected = st.secrets.get("password", os.environ.get("PROSPECT_PASSWORD", ""))
+        if password:
+            if password == expected:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.markdown("""
+                <div style="text-align:center;padding:8px;border:1px solid rgba(255,51,85,0.3);border-radius:6px;background:rgba(255,51,85,0.08);margin-top:8px;">
+                    <span style="color:#FF3355;font-size:13px;">✗ ACCESS DENIED — INCORRECT PASSWORD</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # ── Card footer ──
+    st.markdown("""
+    <div style="width:420px;margin:-4px auto 0;">
+        <div class="footer-line">$ access --grant <span class="cursor"></span></div>
+    </div>
+    """, unsafe_allow_html=True)
     return False
 
 
