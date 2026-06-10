@@ -3,8 +3,8 @@ import sys, os, time
 sys.path.insert(0, "/Users/anirudhpoddar/prospect-finder")
 from scraper import init_scan_state, run_scan_step
 
-API_KEY = "GOOGLE_API_KEY_REMOVED"
-GEO_KEY = "GEOAPIFY_KEY_REMOVED"
+API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+GEO_KEY = os.environ.get("GEOAPIFY_KEY", "")
 
 def run(label, biz_types, locations):
     print(f"\n{'='*70}")
